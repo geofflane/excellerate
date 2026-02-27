@@ -31,21 +31,29 @@ defmodule ExCellerate.Parser do
     |> optional(ascii_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({Enum, :join, []})
 
-  accessor =
-    choice([
-      ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
-      ignore(string("["))
-      |> parsec(:expression)
-      |> ignore(string("]"))
-      |> map({__MODULE__, :make_bracket_access, []})
-    ])
-
   def make_dot_access(key), do: {:dot, key}
   def make_bracket_access(index), do: {:bracket, index}
+  def make_call_access([]), do: {:call, []}
+  def make_call_access(args), do: {:call, args}
 
   variable =
     identifier
-    |> repeat(accessor)
+    |> repeat(
+      choice([
+        ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
+        ignore(string("["))
+        |> parsec(:expression)
+        |> ignore(string("]"))
+        |> map({__MODULE__, :make_bracket_access, []}),
+        ignore(string("("))
+        |> optional(
+          parsec(:expression)
+          |> repeat(ignore(string(",")) |> concat(whitespace) |> parsec(:expression))
+        )
+        |> ignore(string(")"))
+        |> map({__MODULE__, :make_call_access, []})
+      ])
+    )
     |> reduce({__MODULE__, :build_access, []})
 
   def build_access([name | accessors]) do
@@ -54,6 +62,7 @@ defmodule ExCellerate.Parser do
     Enum.reduce(accessors, initial, fn
       {:dot, key}, acc -> {:access, acc, key}
       {:bracket, index}, acc -> {:access, acc, index}
+      {:call, args}, acc -> {:call, acc, List.flatten(List.wrap(args))}
     end)
   end
 
@@ -100,8 +109,10 @@ defmodule ExCellerate.Parser do
 
   factorial =
     unary
-    |> lookahead_not(string("!="))
-    |> optional(string("!") |> replace(:factorial))
+    |> choice([
+      string("!") |> lookahead_not(string("=")) |> replace(:factorial),
+      empty()
+    ])
     |> reduce({__MODULE__, :handle_factorial, []})
 
   def handle_factorial([val, :factorial]), do: {:factorial, [], [val]}

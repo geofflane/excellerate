@@ -84,4 +84,77 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval("1 == 1 ? a : b", %{"a" => 10, "b" => 20}) == 10
     end
   end
+
+  describe "function calls" do
+    test "calls registered functions" do
+      # Example: abs(-10) -> 10, round(1.2) -> 1, floor(1.9) -> 1
+      assert ExCellerate.eval("abs(-10)") == 10
+      assert ExCellerate.eval("round(1.5)") == 2
+      assert ExCellerate.eval("max(10, 20)") == 20
+      assert ExCellerate.eval("min(10, 20)") == 10
+    end
+
+    test "calls custom functions from scope" do
+      # Custom function passed in the scope/context
+      scope = %{
+        "custom" => fn x -> x * 2 end
+      }
+
+      assert ExCellerate.eval("custom(21)", scope) == 42
+    end
+
+    test "allows overriding default functions" do
+      # Override 'abs' with a function that always returns 42
+      scope = %{
+        "abs" => fn _ -> 42 end
+      }
+
+      assert ExCellerate.eval("abs(-10)", scope) == 42
+    end
+
+    test "allows registering custom modules via scope" do
+      defmodule DoubleFunc do
+        @behaviour ExCellerate.Function
+        def name, do: "double"
+        def arity, do: 1
+        def call([n]), do: n * 2
+      end
+
+      scope = %{"double" => DoubleFunc}
+      assert ExCellerate.eval("double(10)", scope) == 20
+    end
+
+    test "supports global registration via Registry" do
+      defmodule DoubleFuncRegistry do
+        defmodule Double do
+          @behaviour ExCellerate.Function
+          def name, do: "double"
+          def arity, do: 1
+          def call([n]), do: n * 2
+        end
+
+        use ExCellerate.Registry, plugins: [Double]
+      end
+
+      # No 'double' in scope, but it's in the registry
+      assert DoubleFuncRegistry.eval("double(5)") == 10
+      # Defaults still work
+      assert DoubleFuncRegistry.eval("abs(-5)") == 5
+    end
+
+    test "registry allows overriding defaults globally" do
+      defmodule OverrideRegistry do
+        defmodule MyAbs do
+          @behaviour ExCellerate.Function
+          def name, do: "abs"
+          def arity, do: 1
+          def call([_]), do: 42
+        end
+
+        use ExCellerate.Registry, plugins: [MyAbs]
+      end
+
+      assert OverrideRegistry.eval("abs(-10)") == 42
+    end
+  end
 end
