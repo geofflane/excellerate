@@ -1,6 +1,11 @@
 defmodule ExCellerateTest do
   use ExUnit.Case
+
   alias ExCellerate
+  alias ExCellerate.Test.DoubleFuncRegistry
+  alias ExCellerate.Test.LimitRegistry
+  alias ExCellerate.Test.NoCacheRegistry
+  alias ExCellerate.Test.OverrideRegistry
 
   describe "simple values" do
     test "evaluates booleans" do
@@ -34,6 +39,7 @@ defmodule ExCellerateTest do
     test "accesses variables in scope" do
       assert ExCellerate.eval("a", %{"a" => 10}) == 10
       assert ExCellerate.eval("var_name", %{"var_name" => 42}) == 42
+      assert ExCellerate.eval("atom_key", %{atom_key: 7}) == 7
     end
 
     test "accesses nested map values via dot notation" do
@@ -165,13 +171,13 @@ defmodule ExCellerateTest do
 
     test "supports global registration via Registry" do
       # No 'double' in scope, but it's in the registry
-      assert ExCellerate.Test.DoubleFuncRegistry.eval("double(5)") == 10
+      assert DoubleFuncRegistry.eval("double(5)") == 10
       # Defaults still work
-      assert ExCellerate.Test.DoubleFuncRegistry.eval("abs(-5)") == 5
+      assert DoubleFuncRegistry.eval("abs(-5)") == 5
     end
 
     test "registry allows overriding defaults globally" do
-      assert ExCellerate.Test.OverrideRegistry.eval("abs(-10)") == 42
+      assert OverrideRegistry.eval("abs(-10)") == 42
     end
   end
 
@@ -182,23 +188,23 @@ defmodule ExCellerateTest do
     end
 
     test "caching respects size limits" do
-      ExCellerate.Test.LimitRegistry.eval("1")
-      ExCellerate.Test.LimitRegistry.eval("2")
-      ExCellerate.Test.LimitRegistry.eval("3")
+      LimitRegistry.eval("1")
+      LimitRegistry.eval("2")
+      LimitRegistry.eval("3")
 
       # Match only keys for THIS registry
       count =
         :ets.select_count(:excellerate_cache, [
-          {{{ExCellerate.Test.LimitRegistry, :_}, :_}, [], [true]}
+          {{{LimitRegistry, :_}, :_}, [], [true]}
         ])
 
       assert count <= 2
     end
 
     test "caching can be disabled per registry" do
-      ExCellerate.Test.NoCacheRegistry.eval("1 + 1")
+      NoCacheRegistry.eval("1 + 1")
 
-      assert ExCellerate.Cache.get(ExCellerate.Test.NoCacheRegistry, "1 + 1") == :error
+      assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
     end
   end
 end

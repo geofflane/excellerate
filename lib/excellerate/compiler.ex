@@ -47,6 +47,23 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  # Called from generated AST to resolve scope variables.
+  # Tries string key first, then atom key (if the atom already exists).
+  @doc false
+  def fetch_from_scope(scope, name) when is_map(scope) and is_binary(name) do
+    case Map.fetch(scope, name) do
+      {:ok, _} = hit ->
+        hit
+
+      :error ->
+        try do
+          Map.fetch(scope, String.to_existing_atom(name))
+        rescue
+          ArgumentError -> :error
+        end
+    end
+  end
+
   # Compiles the IR into Elixir AST.
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
@@ -87,7 +104,7 @@ defmodule ExCellerate.Compiler do
   # Handles variable lookups and function resolution from scope/registry.
   defp to_elixir_ast({:get_var, name}, registry) do
     quote do
-      case Map.fetch(var!(scope), unquote(name)) do
+      case ExCellerate.Compiler.fetch_from_scope(var!(scope), unquote(name)) do
         {:ok, val} ->
           val
 
