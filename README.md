@@ -11,39 +11,40 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
   - Logical: `&&`, `||`, `!`, `not`
   - Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
   - Advanced: Factorials (`n!`) and Ternary operators (`cond ? true : false`).
+- **Built-in Functions**: 
+  - Math: `abs/1`, `round/1`, `floor/1`, `ceil/1`, `max/2`, `min/2`
+  - Utility: `if/3`, `ifnull/2`, `concat/n`, `lookup/2-3`, `normalize/1`
 - **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`) and lists (`data[0]`).
 - **Extensible Function Registry**: Easily add custom functions or override default ones globally or per-evaluation.
 
 ## Installation
-
-Add `excellerate` to your list of dependencies in `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:excellerate, "~> 0.1.0"}
-  ]
-end
+...
+MyApp.Registry.eval("max(10, 20)")
+# => 20
 ```
 
-## Quick Start
+## Built-in Function Reference
 
-```elixir
-# Simple math
-ExCellerate.eval("1 + 2 * 3")
-# => 7
+### Math Functions
+- `abs(n)`: Returns the absolute value of `n`.
+- `round(n)`: Rounds `n` to the nearest integer.
+- `floor(n)`: Returns the largest integer less than or equal to `n`.
+- `ceil(n)`: Returns the smallest integer greater than or equal to `n`.
+- `max(a, b)`: Returns the larger of two values.
+- `min(a, b)`: Returns the smaller of two values.
 
-# Using variables
-ExCellerate.eval("a + b", %{"a" => 10, "b" => 20})
-# => 30
-
-# Nested data access
-scope = %{"user" => %{"scores" => [10, 20, 30]}}
-ExCellerate.eval("user.scores[1] + 5", scope)
-# => 25
-```
+### Utility Functions
+- `if(condition, then_val, else_val)`: Returns `then_val` if `condition` is truthy, otherwise `else_val`.
+- `ifnull(val, default)`: Returns `default` if `val` is `nil`, otherwise returns `val`.
+- `concat(arg1, arg2, ...)`: Concatenates all arguments into a single string.
+- `lookup(collection, key, default \\ nil)`: 
+  - For maps: Looks up `key` in the map.
+  - For lists: Returns the element at the integer `key` (index).
+  - Returns `default` if the value is not found or is `nil`.
+- `normalize(string)`: Downcases the string and replaces all spaces with underscores (e.g., `"Foo Bar"` -> `"foo_bar"`).
 
 ## Custom Registries and Overrides
+
 
 ExCellerate is designed for performance and extensibility. While you can pass functions in the scope, the recommended way to add or override behavior is by creating a dedicated Registry module. This compiles the function dispatch logic once, providing better performance.
 

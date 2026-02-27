@@ -15,6 +15,25 @@ defmodule ExCellerate.Parser do
 
   whitespace = ignore(optional(ascii_string([?\s, ?\t, ?\n], min: 1)))
 
+  string_literal =
+    choice([
+      string("'") |> repeat(lookahead_not(string("'")) |> utf8_char([])) |> string("'"),
+      string("\"") |> repeat(lookahead_not(string("\"")) |> utf8_char([])) |> string("\"")
+    ])
+    |> reduce({__MODULE__, :handle_string_collect, []})
+    |> map({__MODULE__, :strip_quotes, []})
+
+  def handle_string_collect(chars) do
+    chars
+    |> Enum.map(fn
+      c when is_integer(c) -> <<c::utf8>>
+      c -> c
+    end)
+    |> Enum.join("")
+  end
+
+  def strip_quotes(val), do: String.slice(val, 1..-2//1)
+
   boolean =
     choice([
       string("true") |> replace(true),
@@ -76,6 +95,7 @@ defmodule ExCellerate.Parser do
       boolean,
       float_literal,
       int_literal,
+      string_literal,
       variable
     ])
 

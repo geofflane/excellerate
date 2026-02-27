@@ -94,6 +94,32 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval("min(10, 20)") == 10
     end
 
+    test "calls ifnull builtin" do
+      assert ExCellerate.eval("ifnull(a, 0)", %{"a" => nil}) == 0
+      assert ExCellerate.eval("ifnull(a, 0)", %{"a" => 10}) == 10
+    end
+
+    test "calls concat builtin" do
+      assert ExCellerate.eval("concat('foo', 'bar')") == "foobar"
+      assert ExCellerate.eval("concat('a', 1, true)") == "a1true"
+    end
+
+    test "calls lookup builtin" do
+      assert ExCellerate.eval("lookup(map, 'key')", %{"map" => %{"key" => "val"}}) == "val"
+      assert ExCellerate.eval("lookup(list, 1)", %{"list" => ["a", "b", "c"]}) == "b"
+      assert ExCellerate.eval("lookup(map, 'missing', 'default')", %{"map" => %{}}) == "default"
+      assert ExCellerate.eval("lookup(list, 10, 'oops')", %{"list" => [1]}) == "oops"
+    end
+
+    test "calls if builtin" do
+      assert ExCellerate.eval("if(true, 1, 0)") == 1
+      assert ExCellerate.eval("if(false, 1, 0)") == 0
+    end
+
+    test "calls normalize builtin" do
+      assert ExCellerate.eval("normalize('Hello World')") == "hello_world"
+    end
+
     test "calls custom functions from scope" do
       # Custom function passed in the scope/context
       scope = %{

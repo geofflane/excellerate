@@ -8,7 +8,12 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.Math.Floor,
     ExCellerate.Functions.Math.Ceil,
     ExCellerate.Functions.Math.Max,
-    ExCellerate.Functions.Math.Min
+    ExCellerate.Functions.Math.Min,
+    ExCellerate.Functions.General.IfNull,
+    ExCellerate.Functions.General.Concat,
+    ExCellerate.Functions.General.Lookup,
+    ExCellerate.Functions.General.If,
+    ExCellerate.Functions.General.Normalize
   ]
 
   # Returns the list of modules for all default functions.
