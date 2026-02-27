@@ -10,6 +10,7 @@ defmodule ExCellerate.MixProject do
       version: @version,
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps(),
       description: "A high-performance, extensible expression evaluation engine for Elixir.",
       package: package(),
@@ -30,6 +31,9 @@ defmodule ExCellerate.MixProject do
       mod: {ExCellerate.Application, []}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp package do
     [

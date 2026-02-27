@@ -163,36 +163,14 @@ defmodule ExCellerateTest do
     end
 
     test "supports global registration via Registry" do
-      defmodule DoubleFuncRegistry do
-        defmodule Double do
-          @behaviour ExCellerate.Function
-          def name, do: "double"
-          def arity, do: 1
-          def call([n]), do: n * 2
-        end
-
-        use ExCellerate.Registry, plugins: [Double]
-      end
-
       # No 'double' in scope, but it's in the registry
-      assert DoubleFuncRegistry.eval("double(5)") == 10
+      assert ExCellerate.Test.DoubleFuncRegistry.eval("double(5)") == 10
       # Defaults still work
-      assert DoubleFuncRegistry.eval("abs(-5)") == 5
+      assert ExCellerate.Test.DoubleFuncRegistry.eval("abs(-5)") == 5
     end
 
     test "registry allows overriding defaults globally" do
-      defmodule OverrideRegistry do
-        defmodule MyAbs do
-          @behaviour ExCellerate.Function
-          def name, do: "abs"
-          def arity, do: 1
-          def call([_]), do: 42
-        end
-
-        use ExCellerate.Registry, plugins: [MyAbs]
-      end
-
-      assert OverrideRegistry.eval("abs(-10)") == 42
+      assert ExCellerate.Test.OverrideRegistry.eval("abs(-10)") == 42
     end
   end
 
@@ -203,30 +181,23 @@ defmodule ExCellerateTest do
     end
 
     test "caching respects size limits" do
-      defmodule LimitRegistry do
-        use ExCellerate.Registry, cache_limit: 2
-      end
-
-      LimitRegistry.eval("1")
-      LimitRegistry.eval("2")
-      LimitRegistry.eval("3")
-
-      # Give the cast time to process
-      Process.sleep(20)
+      ExCellerate.Test.LimitRegistry.eval("1")
+      ExCellerate.Test.LimitRegistry.eval("2")
+      ExCellerate.Test.LimitRegistry.eval("3")
 
       # Match only keys for THIS registry
-      count = :ets.select_count(:excellerate_cache, [{{{LimitRegistry, :_}, :_}, [], [true]}])
+      count =
+        :ets.select_count(:excellerate_cache, [
+          {{{ExCellerate.Test.LimitRegistry, :_}, :_}, [], [true]}
+        ])
+
       assert count <= 2
     end
 
     test "caching can be disabled per registry" do
-      defmodule NoCacheRegistry do
-        use ExCellerate.Registry, cache_enabled: false
-      end
+      ExCellerate.Test.NoCacheRegistry.eval("1 + 1")
 
-      NoCacheRegistry.eval("1 + 1")
-
-      assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
+      assert ExCellerate.Cache.get(ExCellerate.Test.NoCacheRegistry, "1 + 1") == :error
     end
   end
 end
