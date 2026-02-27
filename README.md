@@ -66,7 +66,21 @@ You can validate an expression's syntax and function calls without executing it:
 
 ## Performance & Caching
 
-ExCellerate automatically caches compiled AST in a protected ETS table. Caching is configured per-registry.
+ExCellerate caches compiled AST in an ETS table for fast repeated evaluations. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
+
+```elixir
+# In your Application module (e.g., lib/my_app/application.ex)
+def start(_type, _args) do
+  children = [
+    ExCellerate.Cache,
+    # ... your other children
+  ]
+
+  Supervisor.start_link(children, strategy: :one_for_one)
+end
+```
+
+If the cache is not started, ExCellerate still works — expressions will simply be parsed and compiled on every call.
 
 ### Configuring Caching in a Registry
 

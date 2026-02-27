@@ -183,6 +183,12 @@ defmodule ExCellerateTest do
 
   describe "caching and configuration" do
     setup do
+      # Ensure cache process is running for caching tests
+      case ExCellerate.Cache.start_link() do
+        {:ok, _pid} -> :ok
+        {:error, {:already_started, _pid}} -> :ok
+      end
+
       ExCellerate.Cache.clear()
       :ok
     end
@@ -205,6 +211,12 @@ defmodule ExCellerateTest do
       NoCacheRegistry.eval("1 + 1")
 
       assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
+    end
+
+    test "eval works without cache process running" do
+      # Without the cache started, eval still works — just no caching
+      GenServer.stop(ExCellerate.Cache)
+      assert ExCellerate.eval("1 + 2") == 3
     end
   end
 end

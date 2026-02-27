@@ -1,16 +1,46 @@
 defmodule ExCellerate.Cache do
-  @moduledoc false
+  @moduledoc """
+  ETS-backed cache for compiled expression ASTs.
+
+  The cache must be started as part of your application's supervision tree
+  for caching to work. If it is not started, expressions will be parsed and
+  compiled on every call.
+
+  ## Setup
+
+  Add `ExCellerate.Cache` to your supervision tree:
+
+      children = [
+        ExCellerate.Cache,
+        # ...
+      ]
+
+      Supervisor.start_link(children, strategy: :one_for_one)
+  """
   use GenServer
 
   @table_name :excellerate_cache
   @default_limit 1000
+  @warn_flag :excellerate_cache_warned
 
-  def start_link(_) do
-    GenServer.start_link(__MODULE__, [], name: __MODULE__)
+  @doc false
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @doc false
+  def child_spec(opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [opts]},
+      type: :worker,
+      restart: :permanent
+    }
+  end
+
+  @doc false
   def get(registry, key) do
-    if enabled?(registry) do
+    if enabled?(registry) and table_exists?() do
       case :ets.lookup(@table_name, {registry, key}) do
         [{_, value}] -> {:ok, value}
         [] -> :error
@@ -20,18 +50,33 @@ defmodule ExCellerate.Cache do
     end
   end
 
+  @doc false
   def put(registry, key, value) do
     if enabled?(registry) do
-      GenServer.call(__MODULE__, {:put, registry, key, value})
+      if table_exists?() do
+        full_key = {registry, key}
+        :ets.insert(@table_name, {full_key, value})
+
+        limit = get_limit(registry)
+        count = count_for_registry(registry)
+        maybe_evict_for_registry(registry, count, limit)
+      else
+        maybe_warn_not_started()
+      end
     end
   end
 
+  @doc false
   def clear do
-    :ets.delete_all_objects(@table_name)
+    if table_exists?() do
+      :ets.delete_all_objects(@table_name)
+    end
   end
 
+  # -- GenServer callbacks --
+
   @impl true
-  def init(_) do
+  def init(_opts) do
     :ets.new(@table_name, [
       :set,
       :public,
@@ -43,17 +88,24 @@ defmodule ExCellerate.Cache do
     {:ok, nil}
   end
 
-  @impl true
-  def handle_call({:put, registry, key, value}, _from, state) do
-    full_key = {registry, key}
-    :ets.insert(@table_name, {full_key, value})
+  # -- Private helpers --
 
-    limit = get_limit(registry)
-    count = count_for_registry(registry)
+  defp table_exists? do
+    :ets.whereis(@table_name) != :undefined
+  end
 
-    maybe_evict_for_registry(registry, count, limit)
+  defp maybe_warn_not_started do
+    unless :persistent_term.get(@warn_flag, false) do
+      :persistent_term.put(@warn_flag, true)
 
-    {:reply, :ok, state}
+      require Logger
+
+      Logger.warning(
+        "ExCellerate caching is enabled but ExCellerate.Cache is not started. " <>
+          "Expressions will be re-compiled on every call. " <>
+          "Add ExCellerate.Cache to your supervision tree to enable caching."
+      )
+    end
   end
 
   defp maybe_evict_for_registry(_registry, count, limit) when count <= limit, do: :ok
