@@ -3,6 +3,49 @@ defmodule ExCellerate.Compiler do
   # Internal: Transforms ExCellerate IR into Elixir AST.
   # This module is not intended to be used directly by library consumers.
 
+  # Dispatches a function call at runtime. Called from generated AST to
+  # keep the quoted expression simple and reduce cyclomatic complexity.
+  @doc false
+  def dispatch_call(func, args) do
+    case func do
+      f when is_function(f) ->
+        apply(f, args)
+
+      module when is_atom(module) and module != nil ->
+        invoke_module(module, args)
+
+      _ ->
+        raise ExCellerate.Error,
+          message: "not a function: #{inspect(func)}",
+          type: :runtime
+    end
+  end
+
+  defp invoke_module(module, args) do
+    if function_exported?(module, :call, 1) do
+      try do
+        module.call(args)
+      rescue
+        e in ExCellerate.Error ->
+          reraise e, __STACKTRACE__
+
+        e ->
+          reraise ExCellerate.Error,
+                  [
+                    message:
+                      "function '#{inspect(module.name())}' failed: #{Exception.message(e)}",
+                    type: :runtime,
+                    details: e
+                  ],
+                  __STACKTRACE__
+      end
+    else
+      raise ExCellerate.Error,
+        message: "not a function: #{inspect(module)}",
+        type: :runtime
+    end
+  end
+
   # Compiles the IR into Elixir AST.
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
@@ -111,39 +154,7 @@ defmodule ExCellerate.Compiler do
       # Using unquote_splicing inside [] ensures we get a list of values.
       actual_args = [unquote_splicing(args_ast)]
 
-      case func do
-        f when is_function(f) ->
-          apply(f, actual_args)
-
-        module when is_atom(module) and module != nil ->
-          if function_exported?(module, :call, 1) do
-            try do
-              module.call(actual_args)
-            rescue
-              e in ExCellerate.Error ->
-                reraise e, __STACKTRACE__
-
-              e ->
-                reraise ExCellerate.Error,
-                        [
-                          message:
-                            "function '#{inspect(module.name())}' failed: #{Exception.message(e)}",
-                          type: :runtime,
-                          details: e
-                        ],
-                        __STACKTRACE__
-            end
-          else
-            raise ExCellerate.Error,
-              message: "not a function: #{inspect(module)}",
-              type: :runtime
-          end
-
-        _ ->
-          raise ExCellerate.Error,
-            message: "not a function: #{inspect(func)}",
-            type: :runtime
-      end
+      ExCellerate.Compiler.dispatch_call(func, actual_args)
     end
   end
 

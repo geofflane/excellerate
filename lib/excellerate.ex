@@ -28,8 +28,8 @@ defmodule ExCellerate do
       "Alice"
   """
 
-  alias ExCellerate.Parser
   alias ExCellerate.Compiler
+  alias ExCellerate.Parser
 
   @type scope :: %{optional(String.t()) => any()}
   @type registry :: module() | nil

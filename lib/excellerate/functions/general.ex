@@ -24,9 +24,7 @@ defmodule ExCellerate.Functions.General.Concat do
 
   @impl true
   def call(args) do
-    args
-    |> Enum.map(&to_string/1)
-    |> Enum.join("")
+    Enum.map_join(args, "", &to_string/1)
   end
 end
 

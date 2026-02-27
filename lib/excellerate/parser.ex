@@ -24,12 +24,10 @@ defmodule ExCellerate.Parser do
     |> map({__MODULE__, :strip_quotes, []})
 
   def handle_string_collect(chars) do
-    chars
-    |> Enum.map(fn
+    Enum.map_join(chars, "", fn
       c when is_integer(c) -> <<c::utf8>>
       c -> c
     end)
-    |> Enum.join("")
   end
 
   def strip_quotes(val), do: String.slice(val, 1..-2//1)
