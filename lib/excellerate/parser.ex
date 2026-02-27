@@ -56,7 +56,7 @@ defmodule ExCellerate.Parser do
           |> repeat(ignore(string(",")) |> concat(whitespace) |> parsec(:expression))
         )
         |> ignore(string(")"))
-        |> map({__MODULE__, :make_call_access, []})
+        |> reduce({__MODULE__, :make_call_access, []})
       ])
     )
     |> reduce({__MODULE__, :build_access, []})
@@ -67,7 +67,7 @@ defmodule ExCellerate.Parser do
     Enum.reduce(accessors, initial, fn
       {:dot, key}, acc -> {:access, acc, key}
       {:bracket, index}, acc -> {:access, acc, index}
-      {:call, args}, acc -> {:call, acc, List.flatten(List.wrap(args))}
+      {:call, args}, acc -> {:call, acc, args}
     end)
   end
 

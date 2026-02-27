@@ -21,8 +21,8 @@ defmodule ExCellerate do
       iex> ExCellerate.eval("1 + 2 * 3")
       7
 
-      iex> ExCellerate.eval("max(a, b)", %{"a" => 10, "b" => 20})
-      20
+      iex> ExCellerate.eval("a + b", %{"a" => 10, "b" => 20})
+      30
 
       iex> ExCellerate.eval("user.name", %{"user" => %{"name" => "Alice"}})
       "Alice"

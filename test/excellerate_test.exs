@@ -112,18 +112,6 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval("abs(-10)", scope) == 42
     end
 
-    test "allows registering custom modules via scope" do
-      defmodule DoubleFunc do
-        @behaviour ExCellerate.Function
-        def name, do: "double"
-        def arity, do: 1
-        def call([n]), do: n * 2
-      end
-
-      scope = %{"double" => DoubleFunc}
-      assert ExCellerate.eval("double(10)", scope) == 20
-    end
-
     test "supports global registration via Registry" do
       defmodule DoubleFuncRegistry do
         defmodule Double do

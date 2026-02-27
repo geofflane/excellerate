@@ -2,7 +2,6 @@ defmodule ExCellerate.Compiler do
   @moduledoc false
   # Internal: Transforms ExCellerate IR into Elixir AST.
   # This module is not intended to be used directly by library consumers.
-  import Bitwise
 
   # Compiles the IR into Elixir AST.
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
@@ -14,7 +13,10 @@ defmodule ExCellerate.Compiler do
   # Returns a quote block that resolves to a module or :not_found at runtime.
   defp resolve_from_registry(name, nil) do
     quote do
-      ExCellerate.Functions.get_default_function(unquote(name)) || :not_found
+      case ExCellerate.Functions.get_default_function(unquote(name)) do
+        nil -> raise "not_found"
+        module -> module
+      end
     end
   end
 
@@ -22,7 +24,7 @@ defmodule ExCellerate.Compiler do
     quote do
       case unquote(registry).resolve_function(unquote(name)) do
         {:ok, module} -> module
-        :error -> :not_found
+        :error -> raise "not_found"
       end
     end
   end
@@ -37,10 +39,7 @@ defmodule ExCellerate.Compiler do
 
         :error ->
           # Check registry if provided
-          case unquote(resolve_from_registry(name, registry)) do
-            :not_found -> raise "not_found"
-            module -> module
-          end
+          unquote(resolve_from_registry(name, registry))
       end
     end
   end
@@ -71,7 +70,24 @@ defmodule ExCellerate.Compiler do
   end
 
   defp to_elixir_ast({:call, target, args}, registry) do
-    target_ast = to_elixir_ast(target, registry)
+    # For :call, we want to try resolving the target as a function/module
+    # BUT we need to handle the case where it's a raw variable name that
+    # might be in the registry but not the scope.
+
+    target_ast =
+      case target do
+        {:get_var, name} ->
+          quote do
+            case Map.fetch(var!(scope), unquote(name)) do
+              {:ok, val} when is_function(val) -> val
+              _ -> unquote(resolve_from_registry(name, registry))
+            end
+          end
+
+        _ ->
+          to_elixir_ast(target, registry)
+      end
+
     # args must be a list of AST nodes
     args_list = List.wrap(args)
     # Recursively transform each argument into Elixir AST
@@ -89,7 +105,6 @@ defmodule ExCellerate.Compiler do
 
         module when is_atom(module) and module != nil ->
           if function_exported?(module, :call, 1) do
-            # Use call directly with the list of arguments
             module.call(actual_args)
           else
             raise "not a function: #{inspect(module)}"
