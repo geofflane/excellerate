@@ -65,6 +65,124 @@ end
 result = ExCellerate.eval!("1 + 2 * 3")
 ```
 
+## Examples
+
+### Basic Expressions
+
+```elixir
+ExCellerate.eval!("1 + 2 * 3")
+# => 7
+
+ExCellerate.eval!("5!")
+# => 120
+
+ExCellerate.eval!("10 % 3")
+# => 1
+```
+
+### Variables and Nested Access
+
+Expressions can reference variables from a scope map. Nested maps and lists are accessed with dot notation and bracket indexing:
+
+```elixir
+scope = %{
+  "order" => %{
+    "items" => [
+      %{"name" => "Widget", "price" => 10.50, "qty" => 2},
+      %{"name" => "Gadget", "price" => 7.25, "qty" => 3}
+    ],
+    "discount" => 5
+  }
+}
+
+ExCellerate.eval!("order.items[0].price * order.items[0].qty", scope)
+# => 21.0
+
+ExCellerate.eval!("order.items[1].name", scope)
+# => "Gadget"
+```
+
+### Combining Functions, Arithmetic, and Logic
+
+```elixir
+scope = %{"price" => 25.0, "quantity" => 4, "tax_rate" => 0.08}
+ExCellerate.eval!("price * quantity * (1 + tax_rate)", scope)
+# => 108.0
+
+scope = %{"score" => 85, "threshold" => 70, "bonus" => 10}
+ExCellerate.eval!("score + bonus >= 90 ? 'A' : 'B'", scope)
+# => "A"
+
+scope = %{"x" => -15, "y" => 7, "z" => 3}
+ExCellerate.eval!("abs(x) + max(y, z) + min(y, z)", scope)
+# => 25
+```
+
+### String Functions
+
+```elixir
+scope = %{"first" => "Jane", "last" => "Doe"}
+ExCellerate.eval!("concat(first, ' ', last)", scope)
+# => "Jane Doe"
+
+scope = %{"email" => "alice@example.com"}
+ExCellerate.eval!("contains(email, '@')", scope)
+# => true
+
+ExCellerate.eval!("substring(email, 0, 5)", scope)
+# => "alice"
+
+scope = %{"category" => "Office Supplies", "id" => 42}
+ExCellerate.eval!("concat(normalize(category), '_', id)", scope)
+# => "office_supplies_42"
+```
+
+### Working with Structs
+
+Structs in scope are accessed the same way as maps. Field names are resolved to atom keys automatically:
+
+```elixir
+uri = URI.parse("https://api.example.com:8080/v1")
+scope = %{"endpoint" => uri}
+
+ExCellerate.eval!("endpoint.host", scope)
+# => "api.example.com"
+
+ExCellerate.eval!("endpoint.port + 1", scope)
+# => 8081
+
+ExCellerate.eval!("endpoint.scheme == 'https' ? 'secure' : 'insecure'", scope)
+# => "secure"
+
+ExCellerate.eval!("contains(endpoint.host, 'example')", scope)
+# => true
+```
+
+Nested structs work too:
+
+```elixir
+scope = %{
+  "config" => %{
+    "endpoint" => URI.parse("https://api.example.com/v1")
+  }
+}
+
+ExCellerate.eval!("config.endpoint.host", scope)
+# => "api.example.com"
+```
+
+### Scope with Atom Keys
+
+Scope maps can use either string or atom keys. String keys take precedence when both exist:
+
+```elixir
+ExCellerate.eval!("name", %{name: "Alice"})
+# => "Alice"
+
+ExCellerate.eval!("host", URI.parse("https://example.com"))
+# => "example.com"
+```
+
 ## Validation
 
 You can validate an expression's syntax and function calls without executing it:

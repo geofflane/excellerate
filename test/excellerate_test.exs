@@ -402,6 +402,54 @@ defmodule ExCellerateTest do
     end
   end
 
+  # ── Struct access ────────────────────────────────────────────────
+
+  describe "struct access" do
+    test "struct fields accessible via dot notation in scope" do
+      uri = URI.parse("https://example.com/path")
+      scope = %{"uri" => uri}
+
+      assert ExCellerate.eval!("uri.host", scope) == "example.com"
+      assert ExCellerate.eval!("uri.scheme", scope) == "https"
+      assert ExCellerate.eval!("uri.path", scope) == "/path"
+    end
+
+    test "struct as top-level scope with atom keys" do
+      uri = URI.parse("https://example.com/path")
+      assert ExCellerate.eval!("host", uri) == "example.com"
+      assert ExCellerate.eval!("scheme", uri) == "https"
+    end
+
+    test "nested struct access" do
+      scope = %{
+        "config" => %{
+          "endpoint" => URI.parse("https://api.example.com/v1")
+        }
+      }
+
+      assert ExCellerate.eval!("config.endpoint.host", scope) == "api.example.com"
+    end
+
+    test "struct field in arithmetic expression" do
+      scope = %{"uri" => URI.parse("https://example.com:8080")}
+      assert ExCellerate.eval!("uri.port + 1", scope) == 8081
+    end
+
+    test "struct field in function call" do
+      scope = %{"uri" => URI.parse("https://example.com/path")}
+      assert ExCellerate.eval!("contains(uri.host, 'example')", scope) == true
+    end
+
+    test "struct field with ternary" do
+      scope = %{"uri" => URI.parse("https://example.com")}
+
+      assert ExCellerate.eval!(
+               "uri.scheme == 'https' ? 'secure' : 'insecure'",
+               scope
+             ) == "secure"
+    end
+  end
+
   # ── Coverage: internal module edge cases ──────────────────────────
 
   describe "error formatting" do

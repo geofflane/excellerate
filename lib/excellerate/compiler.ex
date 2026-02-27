@@ -91,6 +91,24 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  # Called from generated AST to access struct fields.
+  # Structs don't implement Access, so we convert the key to an
+  # existing atom and use Map.get.
+  @doc false
+  def struct_get(struct, key, default) when is_binary(key) do
+    try do
+      Map.get(struct, String.to_existing_atom(key), default)
+    rescue
+      ArgumentError -> default
+    end
+  end
+
+  def struct_get(struct, key, default) when is_atom(key) do
+    Map.get(struct, key, default)
+  end
+
+  def struct_get(_struct, _key, default), do: default
+
   # Called from generated AST to resolve scope variables.
   # Tries string key first, then atom key (if the atom already exists).
   @doc false
@@ -207,6 +225,14 @@ defmodule ExCellerate.Compiler do
       case unquote(target_var) do
         list when is_list(list) and is_integer(unquote(key_var)) ->
           Enum.at(list, unquote(key_var), unquote(sentinel_var))
+
+        %{__struct__: _} = struct ->
+          # Structs don't implement Access; use Map.get with atom key.
+          ExCellerate.Compiler.struct_get(
+            struct,
+            unquote(key_var),
+            unquote(sentinel_var)
+          )
 
         _ ->
           Access.get(unquote(target_var), unquote(key_var), unquote(sentinel_var))
