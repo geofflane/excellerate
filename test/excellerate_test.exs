@@ -61,6 +61,7 @@ defmodule ExCellerateTest do
     test "exponentials" do
       assert ExCellerate.eval("2 ^ 3") == 8
       assert ExCellerate.eval("10 ^ 2") == 100
+      assert ExCellerate.eval("2 ^ -1") == 0.5
     end
 
     test "factorial" do

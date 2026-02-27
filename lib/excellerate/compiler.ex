@@ -22,7 +22,8 @@ defmodule ExCellerate.Compiler do
   end
 
   defp invoke_module(module, args) do
-    if function_exported?(module, :call, 1) do
+    # TODO: Is there a way to do this once instead of every call?
+    if Code.ensure_loaded?(module) and function_exported?(module, :call, 1) do
       try do
         module.call(args)
       rescue
@@ -183,7 +184,7 @@ defmodule ExCellerate.Compiler do
     right_ast = to_elixir_ast(right, registry)
 
     case op do
-      :^ -> quote do: :math.pow(unquote(left_ast), unquote(right_ast)) |> round()
+      :^ -> quote do: :math.pow(unquote(left_ast), unquote(right_ast))
       :<<< -> quote do: Bitwise.<<<(unquote(left_ast), unquote(right_ast))
       :>>> -> quote do: Bitwise.>>>(unquote(left_ast), unquote(right_ast))
       :&&& -> quote do: Bitwise.&&&(unquote(left_ast), unquote(right_ast))
