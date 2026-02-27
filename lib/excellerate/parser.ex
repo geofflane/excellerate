@@ -1,20 +1,44 @@
 defmodule ExCellerate.Parser do
   @moduledoc false
   # Internal: Defines the NimbleParsec grammar for ExCellerate expressions.
-  # It handles operator precedence, literals, variables, and function calls.
+  #
+  # ## Operator Precedence (lowest to highest)
+  #
+  # 1.  Ternary:        `a ? b : c`
+  # 2.  Logical OR:     `||`
+  # 3.  Logical AND:    `&&`
+  # 4.  Bitwise:        `&`, `|`, `|^`
+  # 5.  Comparison:     `==`, `!=`, `>=`, `<=`, `>`, `<`
+  # 6.  Bitshift:       `<<`, `>>`
+  # 7.  Additive:       `+`, `-`
+  # 8.  Multiplicative: `*`, `/`, `%`
+  # 9.  Exponent:       `^`              (left-associative)
+  # 10. Factorial:      `n!`             (postfix unary)
+  # 11. Unary:          `-`, `not`, `~`  (prefix unary)
+  # 12. Primary:        literals, variables, `(expr)`, function calls, access
+  #
+  # Each precedence level is compiled as a separate `defparsec` to keep
+  # generated code size small and compilation fast. A plain variable combinator
+  # is inlined into every `defparsec` that references it; `parsec(:name)` emits
+  # a function call instead, acting as a compilation boundary.
+  #
+  # ## All operators are left-associative
+  #
+  # This includes `^` (exponent). Mathematically exponentiation is typically
+  # right-associative (`2^3^2 = 2^9 = 512`), but this grammar follows the
+  # simpler left-associative model (`2^3^2 = 8^2 = 64`), matching the
+  # behaviour of most spreadsheet engines.
+
   import NimbleParsec
 
-  # ... (rest of the module remains the same)
-
-  # Helper functions for literals
-  def handle_int([val]), do: String.to_integer(val)
-
-  def handle_float([left, ".", ""]), do: String.to_float("#{left}.0")
-  def handle_float([left, ".", right]), do: String.to_float("#{left}.#{right}")
-  def handle_float([".", right]), do: String.to_float("0.#{right}")
+  # ── Whitespace ──────────────────────────────────────────────────
+  # Optional horizontal/vertical whitespace, silently consumed.
 
   whitespace = ignore(optional(ascii_string([?\s, ?\t, ?\n], min: 1)))
 
+  # ── Literals ────────────────────────────────────────────────────
+
+  # String escape sequences: \\, \n, \t, \r, \", \'
   escaped_char =
     ignore(string("\\"))
     |> choice([
@@ -44,17 +68,14 @@ defmodule ExCellerate.Parser do
     choice([single_string, double_string])
     |> reduce({__MODULE__, :handle_string_collect, []})
 
-  def handle_string_collect(chars) do
-    Enum.map_join(chars, "", fn
-      c when is_integer(c) -> <<c::utf8>>
-      c -> c
-    end)
-  end
-
+  # Keywords use lookahead guards so `true_value` parses as an identifier,
+  # not as `true` followed by `_value`.
   boolean =
     choice([
       string("true") |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_])) |> replace(true),
-      string("false") |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_])) |> replace(false)
+      string("false")
+      |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_]))
+      |> replace(false)
     ])
 
   null_literal =
@@ -65,6 +86,7 @@ defmodule ExCellerate.Parser do
   int_literal =
     ascii_string([?0..?9], min: 1) |> reduce({__MODULE__, :handle_int, []})
 
+  # Floats: `1.0`, `1.`, `.5`
   float_literal =
     choice([
       ascii_string([?0..?9], min: 1) |> concat(string(".")) |> ascii_string([?0..?9], min: 0),
@@ -72,16 +94,17 @@ defmodule ExCellerate.Parser do
     ])
     |> reduce({__MODULE__, :handle_float, []})
 
+  # Identifiers: `foo`, `_bar`, `camelCase`, `with_123`
   identifier =
     ascii_string([?a..?z, ?A..?Z, ?_], 1)
     |> optional(ascii_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({Enum, :join, []})
 
-  def make_dot_access(key), do: {:dot, key}
-  def make_bracket_access(index), do: {:bracket, index}
-  def make_call_access([]), do: {:call, []}
-  def make_call_access(args), do: {:call, args}
-
+  # Variables with optional chained access and function calls:
+  #   `user.profile.name`  → nested dot access
+  #   `list[0]`            → bracket access (index can be any expression)
+  #   `abs(-10)`           → function call
+  #   `obj.method(1).val`  → mixed chaining
   variable =
     identifier
     |> repeat(
@@ -102,16 +125,8 @@ defmodule ExCellerate.Parser do
     )
     |> reduce({__MODULE__, :build_access, []})
 
-  def build_access([name | accessors]) do
-    initial = {:get_var, name}
-
-    Enum.reduce(accessors, initial, fn
-      {:dot, key}, acc -> {:access, acc, key}
-      {:bracket, index}, acc -> {:access, acc, index}
-      {:call, args}, acc -> {:call, acc, args}
-    end)
-  end
-
+  # All literal types, tried in order. Keywords before identifiers so
+  # `true` isn't parsed as a variable name.
   literal =
     choice([
       boolean,
@@ -122,11 +137,17 @@ defmodule ExCellerate.Parser do
       variable
     ])
 
+  # ── Precedence level 12: Primary ───────────────────────────────
+  # Literals, variables, and parenthesized sub-expressions.
+
   primary =
     choice([
       whitespace |> concat(literal) |> concat(whitespace),
       ignore(string("(")) |> parsec(:expression) |> ignore(string(")")) |> concat(whitespace)
     ])
+
+  # ── Precedence level 11: Unary prefix ──────────────────────────
+  # `-x`, `not x`, `~x` — right-recursive via parsec(:unary).
 
   unary =
     choice([
@@ -153,60 +174,91 @@ defmodule ExCellerate.Parser do
 
   defparsec(:unary, unary)
 
-  def make_unary([op, operand]), do: {op, [], [operand]}
+  # ── Precedence level 10: Factorial (postfix) ───────────────────
+  # `n!` — the `!` must not be followed by `=` to avoid matching `!=`.
 
   factorial =
-    unary
+    parsec(:unary)
     |> choice([
       string("!") |> lookahead_not(string("=")) |> replace(:factorial),
       empty()
     ])
     |> reduce({__MODULE__, :handle_factorial, []})
 
-  def handle_factorial([val, :factorial]), do: {:factorial, [], [val]}
-  def handle_factorial([val]), do: val
+  defparsec(:factorial, factorial)
+
+  # ── Precedence level 9: Exponent ───────────────────────────────
+  # `a ^ b` — left-associative (see module doc).
 
   exponent =
-    factorial
-    |> repeat(whitespace |> string("^") |> replace(:^) |> concat(whitespace) |> concat(factorial))
+    parsec(:factorial)
+    |> repeat(
+      whitespace
+      |> string("^")
+      |> replace(:^)
+      |> concat(whitespace)
+      |> concat(parsec(:factorial))
+    )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:exponent, exponent)
+
+  # ── Precedence level 8: Multiplicative ─────────────────────────
+  # `*`, `/`, `%` (modulo is `rem/2` in Elixir).
+
   multiplicative =
-    exponent
+    parsec(:exponent)
     |> repeat(
       choice([
         whitespace |> string("*") |> replace(:*) |> concat(whitespace),
         whitespace |> string("/") |> replace(:/) |> concat(whitespace),
         whitespace |> string("%") |> replace(:%) |> concat(whitespace)
       ])
-      |> concat(exponent)
+      |> concat(parsec(:exponent))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:multiplicative, multiplicative)
+
+  # ── Precedence level 7: Additive ───────────────────────────────
+  # `+`, `-` (binary subtraction, not unary negate).
+
   additive =
-    multiplicative
+    parsec(:multiplicative)
     |> repeat(
       choice([
         whitespace |> string("+") |> replace(:+) |> concat(whitespace),
         whitespace |> string("-") |> replace(:-) |> concat(whitespace)
       ])
-      |> concat(multiplicative)
+      |> concat(parsec(:multiplicative))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:additive, additive)
+
+  # ── Precedence level 6: Bitshift ───────────────────────────────
+  # `<<`, `>>` — must be tried before `<` and `>` in comparison.
+
   bitshift =
-    additive
+    parsec(:additive)
     |> repeat(
       choice([
         whitespace |> string("<<") |> replace(:bsl) |> concat(whitespace),
         whitespace |> string(">>") |> replace(:bsr) |> concat(whitespace)
       ])
-      |> concat(additive)
+      |> concat(parsec(:additive))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:bitshift, bitshift)
+
+  # ── Precedence level 5: Comparison ─────────────────────────────
+  # `==`, `!=`, `>=`, `<=`, `>`, `<`
+  # Multi-char operators (`>=`, `<=`) are tried before single-char
+  # (`>`, `<`) to avoid partial matches.
+
   comparison =
-    bitshift
+    parsec(:bitshift)
     |> repeat(
       choice([
         whitespace |> string("==") |> replace(:==) |> concat(whitespace),
@@ -216,46 +268,70 @@ defmodule ExCellerate.Parser do
         whitespace |> string(">") |> replace(:>) |> concat(whitespace),
         whitespace |> string("<") |> replace(:<) |> concat(whitespace)
       ])
-      |> concat(bitshift)
+      |> concat(parsec(:bitshift))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:comparison, comparison)
+
+  # ── Precedence level 4: Bitwise ────────────────────────────────
+  # `&` (AND), `|` (OR), `|^` (XOR)
+  # `|^` is tried before `|` to avoid partial match.
+
   bitwise =
-    comparison
+    parsec(:comparison)
     |> repeat(
       choice([
         whitespace |> string("&") |> replace(:band) |> concat(whitespace),
         whitespace |> string("|^") |> replace(:bxor) |> concat(whitespace),
         whitespace |> string("|") |> replace(:bor) |> concat(whitespace)
       ])
-      |> concat(comparison)
+      |> concat(parsec(:comparison))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:bitwise, bitwise)
+
+  # ── Precedence level 3: Logical AND ────────────────────────────
+  # `&&` binds tighter than `||` so `true || false && false` is
+  # parsed as `true || (false && false)`.
+
   logical_and =
-    bitwise
+    parsec(:bitwise)
     |> repeat(
       whitespace
       |> string("&&")
       |> replace(:and)
       |> concat(whitespace)
-      |> concat(bitwise)
+      |> concat(parsec(:bitwise))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:logical_and, logical_and)
+
+  # ── Precedence level 2: Logical OR ─────────────────────────────
+  # `||` — lowest-precedence binary operator before ternary.
+
   logical_or =
-    logical_and
+    parsec(:logical_and)
     |> repeat(
       whitespace
       |> string("||")
       |> replace(:or)
       |> concat(whitespace)
-      |> concat(logical_and)
+      |> concat(parsec(:logical_and))
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  defparsec(:logical_or, logical_or)
+
+  # ── Precedence level 1: Ternary ────────────────────────────────
+  # `cond ? true_val : false_val`
+  # The branches are full expressions, so ternaries can nest:
+  #   `a ? b ? c : d : e` is `a ? (b ? c : d) : e`
+
   ternary =
-    logical_or
+    parsec(:logical_or)
     |> optional(
       whitespace
       |> string("?")
@@ -267,13 +343,52 @@ defmodule ExCellerate.Parser do
     )
     |> reduce({__MODULE__, :handle_ternary, []})
 
-  def handle_ternary([cond, :question, true_val, :colon, false_val]),
-    do: {:ternary, [], [cond, true_val, false_val]}
+  # Top-level entry point. Every expression starts here.
+  defparsec(:expression, ternary)
+
+  # ── Reducer / helper functions ─────────────────────────────────
+
+  def handle_int([val]), do: String.to_integer(val)
+
+  def handle_float([left, ".", ""]), do: String.to_float("#{left}.0")
+  def handle_float([left, ".", right]), do: String.to_float("#{left}.#{right}")
+  def handle_float([".", right]), do: String.to_float("0.#{right}")
+
+  def handle_string_collect(chars) do
+    Enum.map_join(chars, "", fn
+      c when is_integer(c) -> <<c::utf8>>
+      c -> c
+    end)
+  end
+
+  def make_dot_access(key), do: {:dot, key}
+  def make_bracket_access(index), do: {:bracket, index}
+  def make_call_access([]), do: {:call, []}
+  def make_call_access(args), do: {:call, args}
+
+  def build_access([name | accessors]) do
+    initial = {:get_var, name}
+
+    Enum.reduce(accessors, initial, fn
+      {:dot, key}, acc -> {:access, acc, key}
+      {:bracket, index}, acc -> {:access, acc, index}
+      {:call, args}, acc -> {:call, acc, args}
+    end)
+  end
+
+  def make_unary([op, operand]), do: {op, [], [operand]}
+
+  def handle_factorial([val, :factorial]), do: {:factorial, [], [val]}
+  def handle_factorial([val]), do: val
+
+  def handle_ternary([cond_val, :question, true_val, :colon, false_val]),
+    do: {:ternary, [], [cond_val, true_val, false_val]}
 
   def handle_ternary([val]), do: val
 
-  defparsec(:expression, ternary)
-
+  # Left-folds a flat list of [left, op, right, op, right, ...] into
+  # nested `{op, [], [left, right]}` tuples. Also maps internal operator
+  # atoms to their Elixir equivalents (e.g. :bsl → :<<<).
   def reduce_ops([acc]), do: acc
 
   def reduce_ops([left, op, right | rest]) do
@@ -291,6 +406,8 @@ defmodule ExCellerate.Parser do
 
     reduce_ops([{op, [], [left, right]} | rest])
   end
+
+  # ── Public API ─────────────────────────────────────────────────
 
   def parse(input) do
     case expression(input) do
