@@ -15,13 +15,34 @@ defmodule ExCellerate.Parser do
 
   whitespace = ignore(optional(ascii_string([?\s, ?\t, ?\n], min: 1)))
 
-  string_literal =
-    choice([
-      string("'") |> repeat(lookahead_not(string("'")) |> utf8_char([])) |> string("'"),
-      string("\"") |> repeat(lookahead_not(string("\"")) |> utf8_char([])) |> string("\"")
+  escaped_char =
+    ignore(string("\\"))
+    |> choice([
+      string("\\") |> replace("\\"),
+      string("n") |> replace("\n"),
+      string("t") |> replace("\t"),
+      string("r") |> replace("\r"),
+      string("\"") |> replace("\""),
+      string("'") |> replace("'")
     ])
+
+  single_string =
+    ignore(string("'"))
+    |> repeat(
+      choice([escaped_char, lookahead_not(choice([string("'"), string("\\")])) |> utf8_char([])])
+    )
+    |> ignore(string("'"))
+
+  double_string =
+    ignore(string("\""))
+    |> repeat(
+      choice([escaped_char, lookahead_not(choice([string("\""), string("\\")])) |> utf8_char([])])
+    )
+    |> ignore(string("\""))
+
+  string_literal =
+    choice([single_string, double_string])
     |> reduce({__MODULE__, :handle_string_collect, []})
-    |> map({__MODULE__, :strip_quotes, []})
 
   def handle_string_collect(chars) do
     Enum.map_join(chars, "", fn
@@ -29,8 +50,6 @@ defmodule ExCellerate.Parser do
       c -> c
     end)
   end
-
-  def strip_quotes(val), do: String.slice(val, 1..-2//1)
 
   boolean =
     choice([

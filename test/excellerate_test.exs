@@ -20,6 +20,14 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval(".12") == 0.12
       assert ExCellerate.eval("12.") == 12.0
     end
+
+    test "evaluates strings with escapes" do
+      assert ExCellerate.eval("'a\\n b'") == "a\n b"
+      assert ExCellerate.eval("\"a\\t b\"") == "a\t b"
+      assert ExCellerate.eval("'\\'quoted\\''") == "'quoted'"
+      assert ExCellerate.eval("\"\\\"quoted\\\"\"") == "\"quoted\""
+      assert ExCellerate.eval("'\\\\'") == "\\"
+    end
   end
 
   describe "variables and data structures" do
