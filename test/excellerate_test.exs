@@ -13,6 +13,10 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval("false") == false
     end
 
+    test "evaluates null" do
+      assert ExCellerate.eval("null") == nil
+    end
+
     test "evaluates integers" do
       assert ExCellerate.eval("1") == 1
       assert ExCellerate.eval("123") == 123

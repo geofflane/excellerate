@@ -53,9 +53,14 @@ defmodule ExCellerate.Parser do
 
   boolean =
     choice([
-      string("true") |> replace(true),
-      string("false") |> replace(false)
+      string("true") |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_])) |> replace(true),
+      string("false") |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_])) |> replace(false)
     ])
+
+  null_literal =
+    string("null")
+    |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_]))
+    |> replace(nil)
 
   int_literal =
     ascii_string([?0..?9], min: 1) |> reduce({__MODULE__, :handle_int, []})
@@ -110,6 +115,7 @@ defmodule ExCellerate.Parser do
   literal =
     choice([
       boolean,
+      null_literal,
       float_literal,
       int_literal,
       string_literal,
