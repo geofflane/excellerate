@@ -78,3 +78,36 @@ defmodule ExCellerate.Functions.General.Normalize do
 
   def call(val), do: val
 end
+
+defmodule ExCellerate.Functions.General.Substring do
+  @moduledoc false
+  @behaviour ExCellerate.Function
+
+  def name, do: "substring"
+  def arity, do: :any
+
+  def call([str, start]) when is_binary(str) and is_integer(start) do
+    String.slice(str, start..-1//1)
+  end
+
+  def call([str, start, length])
+      when is_binary(str) and is_integer(start) and is_integer(length) do
+    String.slice(str, start, length)
+  end
+
+  def call(_), do: nil
+end
+
+defmodule ExCellerate.Functions.General.Contains do
+  @moduledoc false
+  @behaviour ExCellerate.Function
+
+  def name, do: "contains"
+  def arity, do: 2
+
+  def call([str, substr]) when is_binary(str) and is_binary(substr) do
+    String.contains?(str, substr)
+  end
+
+  def call(_), do: false
+end

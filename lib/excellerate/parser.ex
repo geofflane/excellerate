@@ -259,9 +259,26 @@ defmodule ExCellerate.Parser do
 
   def parse(input) do
     case expression(input) do
-      {:ok, [ast], "", _, _, _} -> {:ok, ast}
-      {:ok, _, rest, _, _, _} -> {:error, "Unexpected input: #{rest}"}
-      {:error, reason, _, _, _, _} -> {:error, reason}
+      {:ok, [ast], "", _, _, _} ->
+        {:ok, ast}
+
+      {:ok, _, rest, _, {line, column}, _} ->
+        {:error,
+         ExCellerate.Error.exception(
+           message: "Unexpected input at '#{binary_part(rest, 0, min(10, byte_size(rest)))}'",
+           type: :parser,
+           line: line,
+           column: column
+         )}
+
+      {:error, reason, _, _, {line, column}, _} ->
+        {:error,
+         ExCellerate.Error.exception(
+           message: reason,
+           type: :parser,
+           line: line,
+           column: column
+         )}
     end
   end
 end

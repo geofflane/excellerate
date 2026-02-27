@@ -13,7 +13,9 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Concat,
     ExCellerate.Functions.General.Lookup,
     ExCellerate.Functions.General.If,
-    ExCellerate.Functions.General.Normalize
+    ExCellerate.Functions.General.Normalize,
+    ExCellerate.Functions.General.Substring,
+    ExCellerate.Functions.General.Contains
   ]
 
   # Returns the list of modules for all default functions.

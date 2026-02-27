@@ -14,8 +14,13 @@ defmodule ExCellerate.Compiler do
   defp resolve_from_registry(name, nil) do
     quote do
       case ExCellerate.Functions.get_default_function(unquote(name)) do
-        nil -> raise "not_found"
-        module -> module
+        nil ->
+          raise ExCellerate.Error,
+            message: "Function or variable not found: #{unquote(name)}",
+            type: :runtime
+
+        module ->
+          module
       end
     end
   end
@@ -23,8 +28,13 @@ defmodule ExCellerate.Compiler do
   defp resolve_from_registry(name, registry) do
     quote do
       case unquote(registry).resolve_function(unquote(name)) do
-        {:ok, module} -> module
-        :error -> raise "not_found"
+        {:ok, module} ->
+          module
+
+        :error ->
+          raise ExCellerate.Error,
+            message: "Function or variable not found: #{unquote(name)}",
+            type: :runtime
       end
     end
   end
@@ -61,7 +71,9 @@ defmodule ExCellerate.Compiler do
       end
       |> case do
         :not_found ->
-          raise "not_found"
+          raise ExCellerate.Error,
+            message: "Access failed: key not found",
+            type: :runtime
 
         val ->
           val
@@ -105,13 +117,32 @@ defmodule ExCellerate.Compiler do
 
         module when is_atom(module) and module != nil ->
           if function_exported?(module, :call, 1) do
-            module.call(actual_args)
+            try do
+              module.call(actual_args)
+            rescue
+              e in ExCellerate.Error ->
+                reraise e, __STACKTRACE__
+
+              e ->
+                reraise ExCellerate.Error,
+                        [
+                          message:
+                            "function '#{inspect(module.name())}' failed: #{Exception.message(e)}",
+                          type: :runtime,
+                          details: e
+                        ],
+                        __STACKTRACE__
+            end
           else
-            raise "not a function: #{inspect(module)}"
+            raise ExCellerate.Error,
+              message: "not a function: #{inspect(module)}",
+              type: :runtime
           end
 
         _ ->
-          raise "not a function: #{inspect(func)}"
+          raise ExCellerate.Error,
+            message: "not a function: #{inspect(func)}",
+            type: :runtime
       end
     end
   end

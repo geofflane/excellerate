@@ -36,9 +36,13 @@ defmodule ExCellerate.Registry do
   # Internal: Injects the registry logic and an eval/2 helper into the module.
   defmacro __using__(opts) do
     plugins = Keyword.get(opts, :plugins, [])
+    cache_enabled = Keyword.get(opts, :cache_enabled, true)
+    cache_limit = Keyword.get(opts, :cache_limit, 1000)
 
     quote do
       @plugins unquote(plugins)
+      @cache_enabled unquote(cache_enabled)
+      @cache_limit unquote(cache_limit)
       @before_compile ExCellerate.Registry
 
       @doc """
@@ -48,6 +52,12 @@ defmodule ExCellerate.Registry do
       def eval(expression, scope \\ %{}) do
         ExCellerate.eval(expression, scope, __MODULE__)
       end
+
+      @doc """
+      Internal: Configuration for ExCellerate.
+      """
+      def __excellerate_config__(:cache_enabled), do: @cache_enabled
+      def __excellerate_config__(:cache_limit), do: @cache_limit
 
       @doc """
       Resolves a function name to a module implementing the ExCellerate.Function behaviour.

@@ -39,7 +39,13 @@ defmodule ExCellerateTest do
     end
 
     test "returns error for missing variables" do
-      assert ExCellerate.eval("unknown", %{}) == {:error, :not_found}
+      case ExCellerate.eval("unknown", %{}) do
+        {:error, %ExCellerate.Error{message: msg}} ->
+          assert msg =~ "Function or variable not found: unknown"
+
+        other ->
+          flunk("Expected ExCellerate.Error, got #{inspect(other)}")
+      end
     end
   end
 
@@ -120,6 +126,16 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval("normalize('Hello World')") == "hello_world"
     end
 
+    test "calls substring builtin" do
+      assert ExCellerate.eval("substring('Hello World', 6)") == "World"
+      assert ExCellerate.eval("substring('Hello World', 0, 5)") == "Hello"
+    end
+
+    test "calls contains builtin" do
+      assert ExCellerate.eval("contains('Hello World', 'World')") == true
+      assert ExCellerate.eval("contains('Hello World', 'Foo')") == false
+    end
+
     test "calls custom functions from scope" do
       # Custom function passed in the scope/context
       scope = %{
@@ -169,6 +185,40 @@ defmodule ExCellerateTest do
       end
 
       assert OverrideRegistry.eval("abs(-10)") == 42
+    end
+  end
+
+  describe "caching and configuration" do
+    setup do
+      ExCellerate.Cache.clear()
+      :ok
+    end
+
+    test "caching respects size limits" do
+      defmodule LimitRegistry do
+        use ExCellerate.Registry, cache_limit: 2
+      end
+
+      LimitRegistry.eval("1")
+      LimitRegistry.eval("2")
+      LimitRegistry.eval("3")
+
+      # Give the cast time to process
+      Process.sleep(20)
+
+      # Match only keys for THIS registry
+      count = :ets.select_count(:excellerate_cache, [{{{LimitRegistry, :_}, :_}, [], [true]}])
+      assert count <= 2
+    end
+
+    test "caching can be disabled per registry" do
+      defmodule NoCacheRegistry do
+        use ExCellerate.Registry, cache_enabled: false
+      end
+
+      NoCacheRegistry.eval("1 + 1")
+
+      assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
     end
   end
 end
