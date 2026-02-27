@@ -22,7 +22,7 @@ defmodule ExCellerate.Cache do
 
   def put(registry, key, value) do
     if enabled?(registry) do
-      GenServer.cast(__MODULE__, {:put, registry, key, value})
+      GenServer.call(__MODULE__, {:put, registry, key, value})
     end
   end
 
@@ -32,23 +32,36 @@ defmodule ExCellerate.Cache do
 
   @impl true
   def init(_) do
-    :ets.new(@table_name, [:set, :public, :named_table, read_concurrency: true])
+    :ets.new(@table_name, [
+      :set,
+      :public,
+      :named_table,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
     {:ok, nil}
   end
 
   @impl true
-  def handle_cast({:put, registry, key, value}, state) do
+  def handle_call({:put, registry, key, value}, _from, state) do
     full_key = {registry, key}
     :ets.insert(@table_name, {full_key, value})
 
     limit = get_limit(registry)
     count = count_for_registry(registry)
 
-    if count > limit do
-      evict_for_registry(registry)
-    end
+    maybe_evict_for_registry(registry, count, limit)
 
-    {:noreply, state}
+    {:reply, :ok, state}
+  end
+
+  defp maybe_evict_for_registry(_registry, count, limit) when count <= limit, do: :ok
+
+  defp maybe_evict_for_registry(registry, _count, limit) do
+    evict_for_registry(registry)
+    new_count = count_for_registry(registry)
+    maybe_evict_for_registry(registry, new_count, limit)
   end
 
   defp count_for_registry(registry) do
