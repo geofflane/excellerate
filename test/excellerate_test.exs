@@ -185,6 +185,57 @@ defmodule ExCellerateTest do
     end
   end
 
+  describe "arity validation" do
+    test "rejects too many args for fixed-arity function" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("abs(1, 2)")
+
+      assert msg =~ "abs"
+      assert msg =~ "1"
+      assert msg =~ "2"
+    end
+
+    test "rejects too few args for fixed-arity function" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("max(1)")
+
+      assert msg =~ "max"
+      assert msg =~ "2"
+      assert msg =~ "1"
+    end
+
+    test "allows variadic functions with any number of args" do
+      assert ExCellerate.eval!("concat('a')") == "a"
+      assert ExCellerate.eval!("concat('a', 'b', 'c')") == "abc"
+    end
+
+    test "validates arity through a registry" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               DoubleFuncRegistry.eval("double(1, 2)")
+
+      assert msg =~ "double"
+    end
+
+    test "validates arity for scope functions at runtime" do
+      scope = %{"add" => fn a, b -> a + b end}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("add(1, 2, 3)", scope)
+
+      assert msg =~ "arity"
+    end
+
+    test "scope functions with correct arity succeed" do
+      scope = %{"add" => fn a, b -> a + b end}
+      assert ExCellerate.eval!("add(1, 2)", scope) == 3
+    end
+
+    test "validate/2 catches arity errors without executing" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.validate("abs(1, 2)")
+    end
+  end
+
   describe "caching and configuration" do
     setup do
       # Ensure cache process is running for caching tests
@@ -217,9 +268,18 @@ defmodule ExCellerateTest do
       assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
     end
 
+    @tag capture_log: true
     test "eval works without cache process running" do
       # Without the cache started, eval still works — just no caching
       GenServer.stop(ExCellerate.Cache)
+
+      on_exit(fn ->
+        case ExCellerate.Cache.start_link() do
+          {:ok, _pid} -> :ok
+          {:error, {:already_started, _pid}} -> :ok
+        end
+      end)
+
       assert ExCellerate.eval!("1 + 2") == 3
     end
   end

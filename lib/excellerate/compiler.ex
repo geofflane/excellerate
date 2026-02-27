@@ -9,6 +9,7 @@ defmodule ExCellerate.Compiler do
   def dispatch_call(func, args) do
     case func do
       f when is_function(f) ->
+        validate_function_arity!(f, args)
         apply(f, args)
 
       module when is_atom(module) and module != nil ->
@@ -21,9 +22,22 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  defp validate_function_arity!(func, args) do
+    {:arity, expected} = :erlang.fun_info(func, :arity)
+    actual = length(args)
+
+    unless expected == actual do
+      raise ExCellerate.Error,
+        message: "wrong arity: function expects #{expected} argument(s), got #{actual}",
+        type: :runtime
+    end
+  end
+
   defp invoke_module(module, args) do
     # TODO: Is there a way to do this once instead of every call?
     if Code.ensure_loaded?(module) and function_exported?(module, :call, 1) do
+      validate_module_arity!(module, args)
+
       try do
         module.call(args)
       rescue
@@ -43,6 +57,25 @@ defmodule ExCellerate.Compiler do
     else
       raise ExCellerate.Error,
         message: "not a function: #{inspect(module)}",
+        type: :runtime
+    end
+  end
+
+  defp validate_module_arity!(module, args) when is_atom(module) and is_list(args) do
+    if function_exported?(module, :arity, 0), do: do_validate_module_arity!(module, args)
+  end
+
+  defp do_validate_module_arity!(module, args) do
+    expected = module.arity()
+    actual = length(args)
+
+    if expected == :any or expected == actual do
+      :ok
+    else
+      name = if function_exported?(module, :name, 0), do: module.name(), else: inspect(module)
+
+      raise ExCellerate.Error,
+        message: "wrong number of arguments for '#{name}': expected #{expected}, got #{actual}",
         type: :runtime
     end
   end
@@ -68,6 +101,37 @@ defmodule ExCellerate.Compiler do
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
     to_elixir_ast(ast, registry)
+  end
+
+  # Resolves a function module at compile-time (during Compiler.compile/2).
+  # Returns the module if found, nil otherwise. Used for compile-time arity checks.
+  defp resolve_module_at_compile_time(name, nil) do
+    ExCellerate.Functions.get_default_function(name)
+  end
+
+  defp resolve_module_at_compile_time(name, registry) do
+    if Code.ensure_loaded?(registry) and function_exported?(registry, :resolve_function, 1) do
+      case registry.resolve_function(name) do
+        {:ok, module} -> module
+        :error -> nil
+      end
+    else
+      nil
+    end
+  end
+
+  # Validates that the number of arguments matches the function's declared arity.
+  # Raises ExCellerate.Error with type :compiler on mismatch.
+  # Skips check for :any arity (variadic functions).
+  defp validate_arity!(name, module, arg_count) do
+    expected = module.arity()
+
+    unless expected == :any or expected == arg_count do
+      raise ExCellerate.Error,
+        message:
+          "wrong number of arguments for '#{name}': expected #{expected}, got #{arg_count}",
+        type: :compiler
+    end
   end
 
   # Resolves a function name from the registry or defaults.
@@ -147,6 +211,22 @@ defmodule ExCellerate.Compiler do
     # BUT we need to handle the case where it's a raw variable name that
     # might be in the registry but not the scope.
 
+    # args must be a list of AST nodes
+    args_list = List.wrap(args)
+
+    # Compile-time arity check: if target is a named function and we can
+    # resolve it to a module, validate arity now (before generating AST).
+    case target do
+      {:get_var, name} ->
+        case resolve_module_at_compile_time(name, registry) do
+          nil -> :ok
+          module -> validate_arity!(name, module, length(args_list))
+        end
+
+      _ ->
+        :ok
+    end
+
     target_ast =
       case target do
         {:get_var, name} ->
@@ -161,8 +241,6 @@ defmodule ExCellerate.Compiler do
           to_elixir_ast(target, registry)
       end
 
-    # args must be a list of AST nodes
-    args_list = List.wrap(args)
     # Recursively transform each argument into Elixir AST
     args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
 
