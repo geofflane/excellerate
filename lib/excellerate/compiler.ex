@@ -186,21 +186,24 @@ defmodule ExCellerate.Compiler do
   defp to_elixir_ast({:access, target, key_or_index}, registry) do
     target_ast = to_elixir_ast(target, registry)
     key_ast = to_elixir_ast(key_or_index, registry)
+    target_var = Macro.unique_var(:target, __MODULE__)
+    key_var = Macro.unique_var(:key, __MODULE__)
+    sentinel_var = Macro.unique_var(:sentinel, __MODULE__)
 
     quote do
-      target = unquote(target_ast)
-      key = unquote(key_ast)
-      sentinel = unquote(Macro.escape(@not_found_sentinel))
+      unquote(target_var) = unquote(target_ast)
+      unquote(key_var) = unquote(key_ast)
+      unquote(sentinel_var) = unquote(Macro.escape(@not_found_sentinel))
 
-      case target do
-        list when is_list(list) and is_integer(key) ->
-          Enum.at(list, key, sentinel)
+      case unquote(target_var) do
+        list when is_list(list) and is_integer(unquote(key_var)) ->
+          Enum.at(list, unquote(key_var), unquote(sentinel_var))
 
         _ ->
-          Access.get(target, key, sentinel)
+          Access.get(unquote(target_var), unquote(key_var), unquote(sentinel_var))
       end
       |> case do
-        ^sentinel ->
+        ^unquote(sentinel_var) ->
           raise ExCellerate.Error,
             message: "Access failed: key not found",
             type: :runtime
@@ -248,14 +251,14 @@ defmodule ExCellerate.Compiler do
 
     # Recursively transform each argument into Elixir AST
     args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
+    func_var = Macro.unique_var(:func, __MODULE__)
+    args_var = Macro.unique_var(:actual_args, __MODULE__)
 
     quote do
-      func = unquote(target_ast)
-      # evaluate all arguments - this should be a list of values at runtime
-      # Using unquote_splicing inside [] ensures we get a list of values.
-      actual_args = [unquote_splicing(args_ast)]
+      unquote(func_var) = unquote(target_ast)
+      unquote(args_var) = [unquote_splicing(args_ast)]
 
-      ExCellerate.Compiler.dispatch_call(func, actual_args)
+      ExCellerate.Compiler.dispatch_call(unquote(func_var), unquote(args_var))
     end
   end
 

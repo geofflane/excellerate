@@ -232,19 +232,30 @@ defmodule ExCellerate.Parser do
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
-  logical =
+  logical_and =
     bitwise
     |> repeat(
-      choice([
-        whitespace |> string("&&") |> replace(:and) |> concat(whitespace),
-        whitespace |> string("||") |> replace(:or) |> concat(whitespace)
-      ])
+      whitespace
+      |> string("&&")
+      |> replace(:and)
+      |> concat(whitespace)
       |> concat(bitwise)
     )
     |> reduce({__MODULE__, :reduce_ops, []})
 
+  logical_or =
+    logical_and
+    |> repeat(
+      whitespace
+      |> string("||")
+      |> replace(:or)
+      |> concat(whitespace)
+      |> concat(logical_and)
+    )
+    |> reduce({__MODULE__, :reduce_ops, []})
+
   ternary =
-    logical
+    logical_or
     |> optional(
       whitespace
       |> string("?")
