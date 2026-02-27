@@ -1,5 +1,8 @@
 defmodule ExCellerate.Test.OverrideRegistry do
+  @moduledoc false
+
   defmodule MyAbs do
+    @moduledoc false
     @behaviour ExCellerate.Function
 
     def name, do: "abs"

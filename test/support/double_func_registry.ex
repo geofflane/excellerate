@@ -1,5 +1,8 @@
 defmodule ExCellerate.Test.DoubleFuncRegistry do
+  @moduledoc false
+
   defmodule Double do
+    @moduledoc false
     @behaviour ExCellerate.Function
 
     def name, do: "double"
