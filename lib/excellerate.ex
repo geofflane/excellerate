@@ -18,13 +18,13 @@ defmodule ExCellerate do
 
   ## Examples
 
-      iex> ExCellerate.eval("1 + 2 * 3")
+      iex> ExCellerate.eval!("1 + 2 * 3")
       7
 
       iex> ExCellerate.eval("a + b", %{"a" => 10, "b" => 20})
-      30
+      {:ok, 30}
 
-      iex> ExCellerate.eval("user.name", %{"user" => %{"name" => "Alice"}})
+      iex> ExCellerate.eval!("user.name", %{"user" => %{"name" => "Alice"}})
       "Alice"
   """
 
@@ -33,15 +33,60 @@ defmodule ExCellerate do
 
   @type scope :: %{optional(String.t()) => any()}
   @type registry :: module() | nil
-  @type eval_result :: any() | {:error, ExCellerate.Error.t()}
 
   @doc """
   Evaluates a text expression against an optional scope and registry.
 
+  Returns `{:ok, result}` on success or `{:error, reason}` on failure.
+  See `eval!/3` for a version that returns the bare result or raises.
+
   ## Parameters
 
   - `expression`: A string containing the ExCellerate expression.
-  - `scope`: A map of variables available to the expression. Defaults to `%Requested{}`.
+  - `scope`: A map of variables available to the expression. Defaults to `%{}`.
+  - `registry`: An optional module that implements the ExCellerate.Registry behaviour.
+
+  ## Examples
+
+      iex> ExCellerate.eval("1 + 2 * 3")
+      {:ok, 7}
+
+      iex> ExCellerate.eval("a + b", %{"a" => 10, "b" => 20})
+      {:ok, 30}
+
+      iex> ExCellerate.eval("user.name", %{"user" => %{"name" => "Alice"}})
+      {:ok, "Alice"}
+
+      iex> {:error, _} = ExCellerate.eval("1 + * 2")
+
+  """
+  @spec eval(String.t(), scope(), registry()) :: {:ok, any()} | {:error, Exception.t()}
+  def eval(expression, scope \\ %{}, registry \\ nil) do
+    case compile(expression, registry) do
+      {:ok, elixir_ast} ->
+        try do
+          {result, _} = Code.eval_quoted(elixir_ast, [scope: scope], __ENV__)
+          {:ok, result}
+        rescue
+          e ->
+            {:error, e}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Evaluates a text expression, returning the bare result or raising on error.
+
+  This is the "bang" variant of `eval/3`. It returns the result directly
+  on success, or raises the error as an exception on failure.
+
+  ## Parameters
+
+  - `expression`: A string containing the ExCellerate expression.
+  - `scope`: A map of variables available to the expression. Defaults to `%{}`.
   - `registry`: An optional module that implements the ExCellerate.Registry behaviour.
 
   ## Supported Operators
@@ -60,40 +105,31 @@ defmodule ExCellerate do
 
   ## Examples
 
-      iex> ExCellerate.eval("1 + 2 * 3")
+      iex> ExCellerate.eval!("1 + 2 * 3")
       7
 
-      iex> ExCellerate.eval("5!")
+      iex> ExCellerate.eval!("5!")
       120
 
-      iex> ExCellerate.eval("a > 10 ? 'high' : 'low'", %{"a" => 15})
+      iex> ExCellerate.eval!("a > 10 ? 'high' : 'low'", %{"a" => 15})
       "high"
 
-      iex> ExCellerate.eval("concat('Hello', ' ', name)", %{"name" => "Alice"})
+      iex> ExCellerate.eval!("concat('Hello', ' ', name)", %{"name" => "Alice"})
       "Hello Alice"
 
-      iex> ExCellerate.eval("user.profile.id", %{"user" => %{"profile" => %{"id" => 1}}})
+      iex> ExCellerate.eval!("user.profile.id", %{"user" => %{"profile" => %{"id" => 1}}})
       1
 
-  ## Returns
+  ## Raises
 
-  - The result of the evaluation.
-  - `{:error, %ExCellerate.Error{}}` if parsing or evaluation fails.
+  - `ExCellerate.Error` if parsing or compilation fails.
+  - Any exception raised during evaluation.
   """
-  @spec eval(String.t(), scope(), registry()) :: eval_result()
-  def eval(expression, scope \\ %{}, registry \\ nil) do
-    case compile(expression, registry) do
-      {:ok, elixir_ast} ->
-        try do
-          {result, _} = Code.eval_quoted(elixir_ast, [scope: scope], __ENV__)
-          result
-        rescue
-          e ->
-            {:error, e}
-        end
-
-      {:error, reason} ->
-        {:error, reason}
+  @spec eval!(String.t(), scope(), registry()) :: any()
+  def eval!(expression, scope \\ %{}, registry \\ nil) do
+    case eval(expression, scope, registry) do
+      {:ok, result} -> result
+      {:error, error} -> raise error
     end
   end
 

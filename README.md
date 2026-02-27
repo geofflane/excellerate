@@ -43,16 +43,26 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 
 ## Error Handling
 
-ExCellerate uses a structured error system. Errors return `{:error, %ExCellerate.Error{}}`.
+ExCellerate follows the standard Elixir convention of `eval/3` and `eval!/3` variants:
+
+- `ExCellerate.eval/3` returns `{:ok, result}` on success or `{:error, reason}` on failure.
+- `ExCellerate.eval!/3` returns the bare result on success or raises on failure.
 
 ```elixir
+# Safe variant — returns ok/error tuples
 case ExCellerate.eval("1 + * 2") do
-  {:error, %ExCellerate.Error{type: :parser, line: 1, column: 5} = e} ->
+  {:ok, result} ->
+    IO.puts("Result: #{result}")
+
+  {:error, %ExCellerate.Error{type: :parser} = e} ->
     IO.puts("Syntax error: #{Exception.message(e)}")
-  
+
   {:error, %ExCellerate.Error{type: :runtime} = e} ->
     IO.puts("Runtime error: #{Exception.message(e)}")
 end
+
+# Bang variant — raises on error
+result = ExCellerate.eval!("1 + 2 * 3")
 ```
 
 ## Validation
@@ -142,16 +152,16 @@ end
 ### 3. Use your Registry
 
 ```elixir
-# Use the eval/2 function generated in your registry
-MyApp.Registry.eval("greet('World')")
+# Use the eval!/2 function generated in your registry
+MyApp.Registry.eval!("greet('World')")
 # => "Hello, World!"
 
 # Overridden functions work as expected
-MyApp.Registry.eval("abs(-100)")
+MyApp.Registry.eval!("abs(-100)")
 # => 42
 
 # Default functions (not overridden) are still available
-MyApp.Registry.eval("max(10, 20)")
+MyApp.Registry.eval!("max(10, 20)")
 # => 20
 ```
 

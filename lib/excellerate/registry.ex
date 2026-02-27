@@ -16,13 +16,13 @@ defmodule ExCellerate.Registry do
         ]
       end
 
-  Then use it in `ExCellerate.eval/3` or call the generated `eval/2` directly:
+  Then use it in `ExCellerate.eval!/3` or call the generated `eval!/2` directly:
 
-      # Using the registry in eval/3
-      ExCellerate.eval("greet(name)", %{"name" => "World"}, MyRegistry)
+      # Using the registry in eval!/3
+      ExCellerate.eval!("greet(name)", %{"name" => "World"}, MyRegistry)
 
       # Using the generated helper
-      MyRegistry.eval("greet('World')")
+      MyRegistry.eval!("greet('World')")
 
   ## Resolution Order
 
@@ -47,10 +47,21 @@ defmodule ExCellerate.Registry do
 
       @doc """
       Evaluates an expression using this registry.
+
+      Returns `{:ok, result}` on success or `{:error, reason}` on failure.
+      See `eval!/2` for a version that returns the bare result or raises.
       """
-      @spec eval(String.t(), ExCellerate.scope()) :: ExCellerate.eval_result()
+      @spec eval(String.t(), ExCellerate.scope()) :: {:ok, any()} | {:error, Exception.t()}
       def eval(expression, scope \\ %{}) do
         ExCellerate.eval(expression, scope, __MODULE__)
+      end
+
+      @doc """
+      Evaluates an expression using this registry, returning the bare result or raising on error.
+      """
+      @spec eval!(String.t(), ExCellerate.scope()) :: any()
+      def eval!(expression, scope \\ %{}) do
+        ExCellerate.eval!(expression, scope, __MODULE__)
       end
 
       @doc """
