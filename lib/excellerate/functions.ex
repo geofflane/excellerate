@@ -1,7 +1,6 @@
 defmodule ExCellerate.Functions do
-  @moduledoc """
-  Registry for ExCellerate functions.
-  """
+  @moduledoc false
+  # Internal: Manages the list of default built-in functions.
 
   @default_functions [
     ExCellerate.Functions.Math.Abs,
@@ -12,8 +11,12 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.Math.Min
   ]
 
+  # Returns the list of modules for all default functions.
+  @spec list_defaults() :: [module()]
   def list_defaults, do: @default_functions
 
+  # Finds a default function by its string name.
+  @spec get_default_function(String.t()) :: module() | nil
   def get_default_function(name) do
     Enum.find(@default_functions, fn module -> module.name() == name end)
   end

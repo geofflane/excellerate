@@ -1,8 +1,39 @@
 defmodule ExCellerate.Registry do
   @moduledoc """
-  Provides functionality for creating custom registries with plugins.
+  Provides functionality for creating custom function registries.
+
+  Registries allow you to define a set of custom functions (plugins) that
+  extend the built-in capabilities of ExCellerate.
+
+  ## Usage
+
+  Define a registry module and use `ExCellerate.Registry`:
+
+      defmodule MyRegistry do
+        use ExCellerate.Registry, plugins: [
+          MyApp.Functions.Greet,
+          MyApp.Functions.CustomMath
+        ]
+      end
+
+  Then use it in `ExCellerate.eval/3` or call the generated `eval/2` directly:
+
+      # Using the registry in eval/3
+      ExCellerate.eval("greet(name)", %{"name" => "World"}, MyRegistry)
+
+      # Using the generated helper
+      MyRegistry.eval("greet('World')")
+
+  ## Resolution Order
+
+  Functions are resolved in the following order:
+  1. Scope (if a variable in the scope is a function)
+  2. Registry plugins
+  3. Default built-in functions
   """
 
+  @doc false
+  # Internal: Injects the registry logic and an eval/2 helper into the module.
   defmacro __using__(opts) do
     plugins = Keyword.get(opts, :plugins, [])
 
@@ -10,12 +41,23 @@ defmodule ExCellerate.Registry do
       @plugins unquote(plugins)
       @before_compile ExCellerate.Registry
 
+      @doc """
+      Evaluates an expression using this registry.
+      """
+      @spec eval(String.t(), ExCellerate.scope()) :: ExCellerate.eval_result()
       def eval(expression, scope \\ %{}) do
         ExCellerate.eval(expression, scope, __MODULE__)
       end
+
+      @doc """
+      Resolves a function name to a module implementing the ExCellerate.Function behaviour.
+      """
+      @callback resolve_function(String.t()) :: {:ok, module()} | :error
     end
   end
 
+  @doc false
+  # Internal: Generates the `resolve_function/1` clauses at compile-time.
   defmacro __before_compile__(env) do
     plugins = Module.get_attribute(env.module, :plugins)
     default_functions = ExCellerate.Functions.list_defaults()

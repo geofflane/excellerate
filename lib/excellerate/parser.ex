@@ -1,5 +1,10 @@
 defmodule ExCellerate.Parser do
+  @moduledoc false
+  # Internal: Defines the NimbleParsec grammar for ExCellerate expressions.
+  # It handles operator precedence, literals, variables, and function calls.
   import NimbleParsec
+
+  # ... (rest of the module remains the same)
 
   # Helper functions for literals
   def handle_int([val]), do: String.to_integer(val)

@@ -1,4 +1,6 @@
 defmodule ExCellerate.Functions.Math.Abs do
+  @moduledoc false
+  # Internal: Implements the 'abs' function.
   @behaviour ExCellerate.Function
   def name, do: "abs"
   def arity, do: 1
@@ -6,6 +8,8 @@ defmodule ExCellerate.Functions.Math.Abs do
 end
 
 defmodule ExCellerate.Functions.Math.Round do
+  @moduledoc false
+  # Internal: Implements the 'round' function.
   @behaviour ExCellerate.Function
   def name, do: "round"
   def arity, do: 1
@@ -13,6 +17,8 @@ defmodule ExCellerate.Functions.Math.Round do
 end
 
 defmodule ExCellerate.Functions.Math.Floor do
+  @moduledoc false
+  # Internal: Implements the 'floor' function.
   @behaviour ExCellerate.Function
   def name, do: "floor"
   def arity, do: 1
@@ -20,6 +26,8 @@ defmodule ExCellerate.Functions.Math.Floor do
 end
 
 defmodule ExCellerate.Functions.Math.Ceil do
+  @moduledoc false
+  # Internal: Implements the 'ceil' function.
   @behaviour ExCellerate.Function
   def name, do: "ceil"
   def arity, do: 1
@@ -27,6 +35,8 @@ defmodule ExCellerate.Functions.Math.Ceil do
 end
 
 defmodule ExCellerate.Functions.Math.Max do
+  @moduledoc false
+  # Internal: Implements the 'max' function.
   @behaviour ExCellerate.Function
   def name, do: "max"
   def arity, do: 2
@@ -34,6 +44,8 @@ defmodule ExCellerate.Functions.Math.Max do
 end
 
 defmodule ExCellerate.Functions.Math.Min do
+  @moduledoc false
+  # Internal: Implements the 'min' function.
   @behaviour ExCellerate.Function
   def name, do: "min"
   def arity, do: 2

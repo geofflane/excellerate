@@ -1,13 +1,17 @@
 defmodule ExCellerate.Compiler do
-  @moduledoc """
-  Transforms ExCellerate IR into Elixir AST.
-  """
+  @moduledoc false
+  # Internal: Transforms ExCellerate IR into Elixir AST.
+  # This module is not intended to be used directly by library consumers.
   import Bitwise
 
+  # Compiles the IR into Elixir AST.
+  @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
     to_elixir_ast(ast, registry)
   end
 
+  # Resolves a function name from the registry or defaults.
+  # Returns a quote block that resolves to a module or :not_found at runtime.
   defp resolve_from_registry(name, nil) do
     quote do
       ExCellerate.Functions.get_default_function(unquote(name)) || :not_found
@@ -24,6 +28,7 @@ defmodule ExCellerate.Compiler do
   end
 
   # Transform our custom IR to Elixir AST
+  # Handles variable lookups and function resolution from scope/registry.
   defp to_elixir_ast({:get_var, name}, registry) do
     quote do
       case Map.fetch(var!(scope), unquote(name)) do
