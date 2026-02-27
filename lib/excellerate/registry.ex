@@ -58,11 +58,6 @@ defmodule ExCellerate.Registry do
       """
       def __excellerate_config__(:cache_enabled), do: @cache_enabled
       def __excellerate_config__(:cache_limit), do: @cache_limit
-
-      @doc """
-      Resolves a function name to a module implementing the ExCellerate.Function behaviour.
-      """
-      @callback resolve_function(String.t()) :: {:ok, module()} | :error
     end
   end
 
