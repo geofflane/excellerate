@@ -16,6 +16,9 @@ defmodule ExCellerate.MixProject do
       package: package(),
       docs: docs(),
       source_url: @source_url,
+      test_coverage: [
+        ignore_modules: [~r/^ExCellerate\.Test\./]
+      ],
       dialyzer: [
         plt_local_path: "priv/plts/project.plt",
         plt_core_path: "priv/plts/core.plt",

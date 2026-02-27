@@ -114,11 +114,12 @@ defmodule ExCellerateTest do
 
   describe "function calls" do
     test "calls registered functions" do
-      # Example: abs(-10) -> 10, round(1.2) -> 1, floor(1.9) -> 1
       assert ExCellerate.eval!("abs(-10)") == 10
       assert ExCellerate.eval!("round(1.5)") == 2
       assert ExCellerate.eval!("max(10, 20)") == 20
       assert ExCellerate.eval!("min(10, 20)") == 10
+      assert ExCellerate.eval!("ceil(1.2)") == 2
+      assert ExCellerate.eval!("floor(1.9)") == 1
     end
 
     test "calls ifnull builtin" do
@@ -138,6 +139,18 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval!("lookup(list, 10, 'oops')", %{"list" => [1]}) == "oops"
     end
 
+    test "lookup with list and default" do
+      assert ExCellerate.eval!("lookup(list, 10, 'oob')", %{"list" => ["a"]}) == "oob"
+    end
+
+    test "lookup with non-map/list and default returns default" do
+      assert ExCellerate.eval!("lookup(val, 'k', 'fallback')", %{"val" => 42}) == "fallback"
+    end
+
+    test "lookup with non-map/list and no default returns nil" do
+      assert ExCellerate.eval!("lookup(val, 'k')", %{"val" => 42}) == nil
+    end
+
     test "calls if builtin" do
       assert ExCellerate.eval!("if(true, 1, 0)") == 1
       assert ExCellerate.eval!("if(false, 1, 0)") == 0
@@ -147,14 +160,28 @@ defmodule ExCellerateTest do
       assert ExCellerate.eval!("normalize('Hello World')") == "hello_world"
     end
 
+    test "normalize with non-string returns value unchanged" do
+      assert ExCellerate.eval!("normalize(42)", %{}) == 42
+      assert ExCellerate.eval!("normalize(null)", %{}) == nil
+    end
+
     test "calls substring builtin" do
       assert ExCellerate.eval!("substring('Hello World', 6)") == "World"
       assert ExCellerate.eval!("substring('Hello World', 0, 5)") == "Hello"
     end
 
+    test "substring with non-string returns nil" do
+      assert ExCellerate.eval!("substring(123, 0)", %{}) == nil
+    end
+
     test "calls contains builtin" do
       assert ExCellerate.eval!("contains('Hello World', 'World')") == true
       assert ExCellerate.eval!("contains('Hello World', 'Foo')") == false
+    end
+
+    test "contains returns false for non-string args" do
+      assert ExCellerate.eval!("contains(123, 'foo')", %{}) == false
+      assert ExCellerate.eval!("contains(null, 'foo')", %{}) == false
     end
 
     test "calls custom functions from scope" do
@@ -235,6 +262,52 @@ defmodule ExCellerateTest do
     test "validate/2 catches arity errors without executing" do
       assert {:error, %ExCellerate.Error{type: :compiler}} =
                ExCellerate.validate("abs(1, 2)")
+    end
+  end
+
+  # ── Coverage: internal module edge cases ──────────────────────────
+
+  describe "error formatting" do
+    test "compiler error type has correct prefix" do
+      error = ExCellerate.Error.exception(type: :compiler, message: "test")
+      assert Exception.message(error) =~ "Compilation error"
+      assert Exception.message(error) =~ "test"
+    end
+
+    test "error with line and column includes location" do
+      error = ExCellerate.Error.exception(type: :parser, message: "bad", line: 1, column: 5)
+      assert Exception.message(error) =~ "at line 1, column 5"
+    end
+  end
+
+  describe "default function lookup" do
+    test "get_default_function returns nil for unknown function" do
+      assert ExCellerate.Functions.get_default_function("nonexistent_function") == nil
+    end
+
+    test "get_default_function returns module for known function" do
+      assert ExCellerate.Functions.get_default_function("abs") ==
+               ExCellerate.Functions.Math.Abs
+    end
+  end
+
+  describe "compiler dispatch edge cases" do
+    test "dispatch_call with non-callable value raises" do
+      assert_raise ExCellerate.Error, ~r/not a function/, fn ->
+        ExCellerate.Compiler.dispatch_call("not_a_function", [1])
+      end
+    end
+
+    test "dispatch_call with nil raises" do
+      assert_raise ExCellerate.Error, ~r/not a function/, fn ->
+        ExCellerate.Compiler.dispatch_call(nil, [1])
+      end
+    end
+
+    test "dispatch_call with module missing call/1 raises" do
+      assert_raise ExCellerate.Error, ~r/not a function/, fn ->
+        ExCellerate.Compiler.dispatch_call(String, [1])
+      end
     end
   end
 
