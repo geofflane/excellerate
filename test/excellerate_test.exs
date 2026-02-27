@@ -236,6 +236,320 @@ defmodule ExCellerateTest do
     end
   end
 
+  # ── Bug regression tests (TDD: written before fixes) ──────────────
+
+  describe "sentinel collision bug" do
+    test "map value of :not_found is returned correctly" do
+      scope = %{"m" => %{"k" => :not_found}}
+      assert ExCellerate.eval!("m.k", scope) == :not_found
+    end
+
+    test "list value of :not_found is returned correctly" do
+      scope = %{"l" => [:not_found, :ok]}
+      assert ExCellerate.eval!("l[0]", scope) == :not_found
+    end
+  end
+
+  describe "factorial edge cases" do
+    test "negative factorial returns error" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("(-1)!")
+    end
+
+    test "float factorial returns error" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("(1.5)!")
+    end
+  end
+
+  describe "modulo operator" do
+    test "basic modulo" do
+      assert ExCellerate.eval!("10 % 3") == 1
+      assert ExCellerate.eval!("7 % 2") == 1
+      assert ExCellerate.eval!("8 % 4") == 0
+    end
+
+    test "modulo has same precedence as multiplication" do
+      # 10 + 7 % 3 should be 10 + 1 = 11 (% binds tighter than +)
+      assert ExCellerate.eval!("10 + 7 % 3") == 11
+    end
+
+    test "negative modulo" do
+      assert ExCellerate.eval!("-7 % 3") == -1
+    end
+  end
+
+  # ── Operator precedence ──────────────────────────────────────────
+
+  describe "operator precedence" do
+    test "multiplication binds tighter than addition" do
+      assert ExCellerate.eval!("1 + 2 * 3") == 7
+      assert ExCellerate.eval!("2 * 3 + 4 * 5") == 26
+    end
+
+    test "exponent binds tighter than multiplication" do
+      assert ExCellerate.eval!("2 ^ 3 * 2") == 16.0
+    end
+
+    test "parentheses override precedence" do
+      assert ExCellerate.eval!("(1 + 2) * 3") == 9
+      assert ExCellerate.eval!("2 * (3 + 4)") == 14
+      assert ExCellerate.eval!("(2 + 3) ^ 2") == 25.0
+    end
+
+    test "nested parentheses" do
+      assert ExCellerate.eval!("((1 + 2) * (3 + 4))") == 21
+      assert ExCellerate.eval!("((1))") == 1
+    end
+
+    test "logical AND binds tighter than OR" do
+      assert ExCellerate.eval!("true || false && false") == true
+      assert ExCellerate.eval!("false || true && true") == true
+    end
+
+    test "comparison binds tighter than logical" do
+      assert ExCellerate.eval!("1 < 2 && 3 > 1") == true
+      assert ExCellerate.eval!("1 > 2 || 3 > 1") == true
+    end
+
+    test "unary minus binds tighter than binary operators" do
+      assert ExCellerate.eval!("-2 + 3") == 1
+      assert ExCellerate.eval!("3 + -2") == 1
+    end
+
+    test "exponent is left-associative" do
+      # Left-assoc: 2^3^2 = (2^3)^2 = 8^2 = 64
+      assert ExCellerate.eval!("2 ^ 3 ^ 2") == 64.0
+    end
+  end
+
+  # ── Basic arithmetic (standalone) ────────────────────────────────
+
+  describe "basic arithmetic" do
+    test "subtraction" do
+      assert ExCellerate.eval!("5 - 3") == 2
+      assert ExCellerate.eval!("3 - 5") == -2
+    end
+
+    test "multiplication" do
+      assert ExCellerate.eval!("3 * 4") == 12
+      assert ExCellerate.eval!("0 * 100") == 0
+    end
+
+    test "division" do
+      assert ExCellerate.eval!("10 / 2") == 5.0
+      assert ExCellerate.eval!("7 / 2") == 3.5
+    end
+
+    test "division by zero returns error" do
+      assert {:error, _} = ExCellerate.eval("1 / 0")
+    end
+
+    test "double negation" do
+      assert ExCellerate.eval!("- -5") == 5
+    end
+
+    test "subtraction of negative" do
+      assert ExCellerate.eval!("3 - -2") == 5
+    end
+
+    test "zero" do
+      assert ExCellerate.eval!("0") == 0
+    end
+  end
+
+  # ── Parser error cases ──────────────────────────────────────────
+
+  describe "parser errors" do
+    test "empty string" do
+      assert {:error, %ExCellerate.Error{type: :parser}} = ExCellerate.eval("")
+    end
+
+    test "unknown characters" do
+      assert {:error, _} = ExCellerate.eval("1 @ 2")
+    end
+
+    test "trailing operator" do
+      assert {:error, _} = ExCellerate.eval("1 + ")
+    end
+
+    test "mismatched parentheses" do
+      assert {:error, _} = ExCellerate.eval("(1 + 2")
+      assert {:error, _} = ExCellerate.eval("1 + 2)")
+    end
+
+    test "missing closing bracket" do
+      assert {:error, _} = ExCellerate.eval("list[0")
+    end
+
+    test "missing function closing paren" do
+      assert {:error, _} = ExCellerate.eval("abs(1")
+    end
+  end
+
+  # ── Nested expressions ──────────────────────────────────────────
+
+  describe "nested expressions" do
+    test "nested function calls" do
+      assert ExCellerate.eval!("abs(min(-5, -10))") == 10
+      assert ExCellerate.eval!("max(abs(-3), abs(-7))") == 7
+    end
+
+    test "function call as operator argument" do
+      assert ExCellerate.eval!("abs(-3) + abs(-4)") == 7
+    end
+
+    test "nested ternary in true branch" do
+      assert ExCellerate.eval!("true ? (false ? 1 : 2) : 3") == 2
+    end
+
+    test "nested ternary in false branch" do
+      assert ExCellerate.eval!("false ? 1 : (true ? 2 : 3)") == 2
+    end
+
+    test "bracket access with expression index" do
+      assert ExCellerate.eval!("list[1 + 1]", %{"list" => [10, 20, 30]}) == 30
+    end
+
+    test "bracket access with variable index" do
+      assert ExCellerate.eval!("list[idx]", %{"list" => [10, 20, 30], "idx" => 2}) == 30
+    end
+  end
+
+  # ── Public API ──────────────────────────────────────────────────
+
+  describe "public API" do
+    test "eval returns {:ok, result} on success" do
+      assert {:ok, 7} = ExCellerate.eval("1 + 2 * 3")
+    end
+
+    test "eval returns {:error, _} on parse error" do
+      assert {:error, %ExCellerate.Error{type: :parser}} = ExCellerate.eval("1 +")
+    end
+
+    test "eval! raises on parse error" do
+      assert_raise ExCellerate.Error, fn ->
+        ExCellerate.eval!("1 +")
+      end
+    end
+
+    test "eval! raises on runtime error" do
+      assert_raise ExCellerate.Error, fn ->
+        ExCellerate.eval!("unknown_var")
+      end
+    end
+
+    test "validate returns :ok for valid expressions" do
+      assert :ok = ExCellerate.validate("1 + 2")
+      assert :ok = ExCellerate.validate("abs(-1)")
+    end
+
+    test "validate returns error for invalid expressions" do
+      assert {:error, %ExCellerate.Error{type: :parser}} = ExCellerate.validate("1 +")
+    end
+
+    test "compile returns {:ok, ast} for valid expressions" do
+      assert {:ok, _ast} = ExCellerate.compile("1 + 2")
+    end
+
+    test "compile returns {:error, _} for invalid expressions" do
+      assert {:error, %ExCellerate.Error{}} = ExCellerate.compile("1 +")
+    end
+
+    test "registry eval returns {:ok, result}" do
+      assert {:ok, 10} = DoubleFuncRegistry.eval("double(5)")
+    end
+
+    test "registry eval! raises on error" do
+      assert_raise ExCellerate.Error, fn ->
+        DoubleFuncRegistry.eval!("unknown_func(1)")
+      end
+    end
+  end
+
+  # ── Type mismatches and truthiness ──────────────────────────────
+
+  describe "type edge cases" do
+    test "nil in arithmetic returns error" do
+      assert {:error, _} = ExCellerate.eval("a + 1", %{"a" => nil})
+    end
+
+    test "boolean in arithmetic returns error" do
+      assert {:error, _} = ExCellerate.eval("true + 1")
+    end
+
+    test "ternary treats 0 as truthy (Elixir semantics)" do
+      assert ExCellerate.eval!("0 ? 'yes' : 'no'") == "yes"
+    end
+
+    test "ternary treats empty string as truthy" do
+      assert ExCellerate.eval!("'' ? 'yes' : 'no'") == "yes"
+    end
+
+    test "ternary treats null as falsy" do
+      assert ExCellerate.eval!("null ? 'yes' : 'no'") == "no"
+    end
+  end
+
+  # ── Whitespace and string edge cases ────────────────────────────
+
+  describe "whitespace handling" do
+    test "no whitespace around operators" do
+      assert ExCellerate.eval!("1+2") == 3
+      assert ExCellerate.eval!("3*4") == 12
+    end
+
+    test "extra whitespace around operators" do
+      assert ExCellerate.eval!("  1  +  2  ") == 3
+    end
+
+    test "tabs as whitespace" do
+      assert ExCellerate.eval!("1\t+\t2") == 3
+    end
+
+    test "newlines as whitespace" do
+      assert ExCellerate.eval!("1\n+\n2") == 3
+    end
+
+    test "whitespace in function args" do
+      assert ExCellerate.eval!("abs(  -10  )") == 10
+    end
+  end
+
+  describe "string edge cases" do
+    test "empty strings" do
+      assert ExCellerate.eval!("''") == ""
+      assert ExCellerate.eval!("\"\"") == ""
+    end
+
+    test "carriage return escape" do
+      assert ExCellerate.eval!("'a\\rb'") == "a\rb"
+    end
+  end
+
+  # ── Scope edge cases ────────────────────────────────────────────
+
+  describe "scope edge cases" do
+    test "string key takes precedence over atom key" do
+      scope = %{"x" => 1, x: 2}
+      assert ExCellerate.eval!("x", scope) == 1
+    end
+
+    test "non-function scope variable called as function returns error" do
+      scope = %{"notfunc" => 42}
+      assert {:error, _} = ExCellerate.eval("notfunc(1)", scope)
+    end
+
+    test "scope variable shadows builtin when not called as function" do
+      scope = %{"abs" => 42}
+      assert ExCellerate.eval!("abs", scope) == 42
+    end
+
+    test "negate a variable" do
+      assert ExCellerate.eval!("-a", %{"a" => 5}) == -5
+    end
+  end
+
   describe "caching and configuration" do
     setup do
       # Ensure cache process is running for caching tests

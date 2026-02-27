@@ -3,6 +3,10 @@ defmodule ExCellerate.Compiler do
   # Internal: Transforms ExCellerate IR into Elixir AST.
   # This module is not intended to be used directly by library consumers.
 
+  # Private sentinel for detecting missing keys in access expressions.
+  # Using a unique tuple avoids collisions with legitimate user data.
+  @not_found_sentinel {__MODULE__, :not_found}
+
   # Dispatches a function call at runtime. Called from generated AST to
   # keep the quoted expression simple and reduce cyclomatic complexity.
   @doc false
@@ -186,16 +190,17 @@ defmodule ExCellerate.Compiler do
     quote do
       target = unquote(target_ast)
       key = unquote(key_ast)
+      sentinel = unquote(Macro.escape(@not_found_sentinel))
 
       case target do
         list when is_list(list) and is_integer(key) ->
-          Enum.at(list, key, :not_found)
+          Enum.at(list, key, sentinel)
 
         _ ->
-          Access.get(target, key, :not_found)
+          Access.get(target, key, sentinel)
       end
       |> case do
-        :not_found ->
+        ^sentinel ->
           raise ExCellerate.Error,
             message: "Access failed: key not found",
             type: :runtime
@@ -260,6 +265,7 @@ defmodule ExCellerate.Compiler do
               :-,
               :*,
               :/,
+              :%,
               :^,
               :==,
               :!=,
@@ -280,6 +286,7 @@ defmodule ExCellerate.Compiler do
 
     case op do
       :^ -> quote do: :math.pow(unquote(left_ast), unquote(right_ast))
+      :% -> quote do: rem(unquote(left_ast), unquote(right_ast))
       :<<< -> quote do: Bitwise.<<<(unquote(left_ast), unquote(right_ast))
       :>>> -> quote do: Bitwise.>>>(unquote(left_ast), unquote(right_ast))
       :&&& -> quote do: Bitwise.&&&(unquote(left_ast), unquote(right_ast))

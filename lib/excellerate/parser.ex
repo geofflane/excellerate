@@ -176,7 +176,8 @@ defmodule ExCellerate.Parser do
     |> repeat(
       choice([
         whitespace |> string("*") |> replace(:*) |> concat(whitespace),
-        whitespace |> string("/") |> replace(:/) |> concat(whitespace)
+        whitespace |> string("/") |> replace(:/) |> concat(whitespace),
+        whitespace |> string("%") |> replace(:%) |> concat(whitespace)
       ])
       |> concat(exponent)
     )
