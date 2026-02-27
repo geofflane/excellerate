@@ -1,6 +1,8 @@
 defmodule ExCellerateTest do
   use ExUnit.Case
 
+  doctest ExCellerate
+
   alias ExCellerate
   alias ExCellerate.Test.DoubleFuncRegistry
   alias ExCellerate.Test.LimitRegistry
