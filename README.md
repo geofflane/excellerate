@@ -117,7 +117,7 @@ config :excellerate,
 
 ## Custom Registries and Overrides
 
-ExCellerate is designed for performance and extensibility. While you can pass functions in the scope, the recommended way to add or override behavior is by creating a dedicated Registry module. This compiles the function dispatch logic once, providing better performance.
+ExCellerate is designed for performance and extensibility. The way to add or override behavior is by creating a dedicated Registry module. This compiles the function dispatch logic once, providing better performance.
 
 ### 1. Define your Custom Functions
 
