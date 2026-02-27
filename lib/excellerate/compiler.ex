@@ -7,6 +7,13 @@ defmodule ExCellerate.Compiler do
   # Using a unique tuple avoids collisions with legitimate user data.
   @not_found_sentinel {__MODULE__, :not_found}
 
+  # The scope variable used in generated AST. Using a fixed Macro.var
+  # ensures the fn wrapper in ExCellerate.compile/2 can bind to it.
+  @scope_var Macro.var(:scope, __MODULE__)
+
+  @doc false
+  def scope_var, do: @scope_var
+
   # Dispatches a function call at runtime. Called from generated AST to
   # keep the quoted expression simple and reduce cyclomatic complexity.
   @doc false
@@ -171,8 +178,10 @@ defmodule ExCellerate.Compiler do
   # Transform our custom IR to Elixir AST
   # Handles variable lookups and function resolution from scope/registry.
   defp to_elixir_ast({:get_var, name}, registry) do
+    scope_var = @scope_var
+
     quote do
-      case ExCellerate.Compiler.fetch_from_scope(var!(scope), unquote(name)) do
+      case ExCellerate.Compiler.fetch_from_scope(unquote(scope_var), unquote(name)) do
         {:ok, val} ->
           val
 
@@ -235,11 +244,13 @@ defmodule ExCellerate.Compiler do
         :ok
     end
 
+    scope_var = @scope_var
+
     target_ast =
       case target do
         {:get_var, name} ->
           quote do
-            case Map.fetch(var!(scope), unquote(name)) do
+            case Map.fetch(unquote(scope_var), unquote(name)) do
               {:ok, val} when is_function(val) -> val
               _ -> unquote(resolve_from_registry(name, registry))
             end

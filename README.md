@@ -74,9 +74,28 @@ You can validate an expression's syntax and function calls without executing it:
 {:error, %ExCellerate.Error{}} = ExCellerate.validate("invalid(1, 2)")
 ```
 
+## Pre-compilation
+
+For maximum performance, you can compile an expression once and reuse it with different scopes. The compiled function skips parsing and AST generation on subsequent calls:
+
+```elixir
+{:ok, fun} = ExCellerate.compile("price * quantity * (1 - discount)")
+
+fun.(%{"price" => 100, "quantity" => 3, "discount" => 0.1})
+# => 270.0
+
+fun.(%{"price" => 50, "quantity" => 10, "discount" => 0.2})
+# => 400.0
+
+# Bang variant
+fun = ExCellerate.compile!("a + b")
+fun.(%{"a" => 1, "b" => 2})
+# => 3
+```
+
 ## Performance & Caching
 
-ExCellerate caches compiled AST in an ETS table for fast repeated evaluations. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
+ExCellerate caches compiled functions in an ETS table for fast repeated evaluations. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
 
 ```elixir
 # In your Application module (e.g., lib/my_app/application.ex)
@@ -182,7 +201,7 @@ MyApp.Registry.eval!("max(10, 20)")
 
 ## Security
 
-ExCellerate uses `Code.eval_quoted/3` internally to evaluate compiled expressions. While this may raise concerns, the expression input is not evaluated directly — it passes through two controlled stages:
+ExCellerate uses `Code.eval_quoted/3` internally to compile expressions into reusable anonymous functions. This happens once per unique expression (the result is cached). While `eval_quoted` may raise concerns, the expression input is not evaluated directly — it passes through two controlled stages:
 
 1. **Parsing**: The NimbleParsec parser only accepts a fixed grammar. Arbitrary Elixir code (e.g., `System.cmd/2`, `File.rm/1`) cannot be expressed in the parser's syntax and will be rejected as parse errors.
 
