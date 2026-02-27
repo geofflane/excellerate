@@ -170,6 +170,27 @@ MyApp.Registry.eval("max(10, 20)")
 - **First-run Overhead**: The very first time an expression is encountered, it must be parsed and compiled. Subsequent calls use the cache.
 - **Static Resolution**: Custom functions are resolved at compile-time (in registries) or lookup-time, which might be slightly slower than hardcoded Elixir calls.
 
+## Security
+
+ExCellerate uses `Code.eval_quoted/3` internally to evaluate compiled expressions. While this may raise concerns, the expression input is not evaluated directly — it passes through two controlled stages:
+
+1. **Parsing**: The NimbleParsec parser only accepts a fixed grammar. Arbitrary Elixir code (e.g., `System.cmd/2`, `File.rm/1`) cannot be expressed in the parser's syntax and will be rejected as parse errors.
+
+2. **Compilation**: The compiler only generates AST for a restricted set of operations: arithmetic, comparisons, logical/bitwise operators, data access (`Map.fetch`, `Access.get`, `Enum.at`), and function calls dispatched through the registry system. No arbitrary module calls, process operations, or I/O are emitted.
+
+The parser is the security boundary. Users cannot inject arbitrary Elixir through an expression string because the parser will not produce IR for it, and the compiler will not generate AST for it.
+
+**When is this safe?**
+
+- Developers writing expressions in config files or application code — no risk, they already have full code access.
+- End-users submitting expressions through a UI — the parser constrains what can be expressed. They cannot escape the expression grammar.
+
+**What would constitute a vulnerability?**
+
+A bug in the parser or compiler that causes a crafted expression string to produce unexpected AST. This is a narrow surface area, but if you discover such a case, please report it.
+
+We think that this is a valid analysis of the threat, but we welcome feedback on this security model. If you have concerns or find an issue, please open an issue on the [GitHub repository](https://github.com/matchsense/excellerate).
+
 ## Documentation
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc) and published on [HexDocs](https://hexdocs.pm). Once published, the docs can be found at [https://hexdocs.pm/excellerate](https://hexdocs.pm/excellerate).
