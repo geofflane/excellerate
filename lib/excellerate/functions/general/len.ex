@@ -11,4 +11,10 @@ defmodule ExCellerate.Functions.General.Len do
   @impl true
   def call([list]) when is_list(list), do: length(list)
   def call([str]) when is_binary(str), do: String.length(str)
+
+  def call([other]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a string or list, got: #{inspect(other)}",
+      type: :runtime
+  end
 end

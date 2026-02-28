@@ -14,4 +14,11 @@ defmodule ExCellerate.Functions.General.Replace do
       when is_binary(str) and is_binary(pattern) and is_binary(replacement) do
     String.replace(str, pattern, replacement)
   end
+
+  def call([str, pattern, replacement]) do
+    raise ExCellerate.Error,
+      message:
+        "#{name()} expects three strings, got: #{inspect(str)}, #{inspect(pattern)}, #{inspect(replacement)}",
+      type: :runtime
+  end
 end

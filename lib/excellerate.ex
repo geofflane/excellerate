@@ -25,8 +25,8 @@ defmodule ExCellerate do
   | `floor(n)` | Largest integer ≤ `n` |
   | `ceil(n)` | Smallest integer ≥ `n` |
   | `trunc(n)` | Truncates toward zero (unlike `floor` for negatives) |
-  | `max(a, b)` or `max(list)` | Returns the larger value, or maximum of a list |
-  | `min(a, b)` or `min(list)` | Returns the smaller value, or minimum of a list |
+  | `max(a, b, ...)` or `max(list)` | Maximum of arguments or a list |
+  | `min(a, b, ...)` or `min(list)` | Minimum of arguments or a list |
   | `sign(n)` | Returns -1, 0, or 1 |
   | `sqrt(n)` | Square root |
   | `exp(n)` | e raised to the power `n` |
@@ -250,6 +250,11 @@ defmodule ExCellerate do
 
   Returns `:ok` if the expression is valid, or `{:error, %ExCellerate.Error{}}`
   if it contains syntax errors or references unknown functions.
+
+  **Note:** Validation checks syntax, function existence, and arity, but does
+  not perform type checking. Since scope values are not known until runtime,
+  type errors (e.g., passing a number to `upper/1`) will only be caught at
+  evaluation time.
 
   ## Examples
 

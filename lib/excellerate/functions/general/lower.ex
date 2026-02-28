@@ -10,4 +10,10 @@ defmodule ExCellerate.Functions.General.Lower do
 
   @impl true
   def call([str]) when is_binary(str), do: String.downcase(str)
+
+  def call([other]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a string, got: #{inspect(other)}",
+      type: :runtime
+  end
 end

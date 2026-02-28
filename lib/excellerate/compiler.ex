@@ -43,8 +43,7 @@ defmodule ExCellerate.Compiler do
         e ->
           reraise ExCellerate.Error,
                   [
-                    message:
-                      "function '#{inspect(module.name())}' failed: #{Exception.message(e)}",
+                    message: "function '#{module.name()}' failed: #{Exception.message(e)}",
                     type: :runtime,
                     details: e
                   ],

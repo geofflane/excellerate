@@ -8,10 +8,20 @@ defmodule ExCellerate.FunctionsTest do
     test "calls registered functions" do
       assert ExCellerate.eval!("abs(-10)") == 10
       assert ExCellerate.eval!("round(1.5)") == 2
-      assert ExCellerate.eval!("max(10, 20)") == 20
-      assert ExCellerate.eval!("min(10, 20)") == 10
       assert ExCellerate.eval!("ceil(1.2)") == 2
       assert ExCellerate.eval!("floor(1.9)") == 1
+    end
+
+    test "min is variadic" do
+      assert ExCellerate.eval!("min(5)") == 5
+      assert ExCellerate.eval!("min(3, 1, 2)") == 1
+      assert ExCellerate.eval!("min(10, 20, 5, 15)") == 5
+    end
+
+    test "max is variadic" do
+      assert ExCellerate.eval!("max(5)") == 5
+      assert ExCellerate.eval!("max(3, 1, 2)") == 3
+      assert ExCellerate.eval!("max(10, 20, 5, 15)") == 20
     end
 
     test "calls sqrt builtin" do
@@ -77,6 +87,14 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("len('hello')") == 5
       assert ExCellerate.eval!("len('')") == 0
       assert ExCellerate.eval!("len(name)", %{"name" => "Alice"}) == 5
+    end
+
+    test "len with non-string non-list returns error" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("len(1)")
+
+      assert msg =~ "len"
+      assert msg =~ "string or list"
     end
 
     test "calls left builtin" do

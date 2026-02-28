@@ -26,8 +26,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `floor(n)`: Largest integer less than or equal to `n`.
 - `ceil(n)`: Smallest integer greater than or equal to `n`.
 - `trunc(n)`: Truncates toward zero (unlike `floor` for negatives).
-- `max(a, b)` / `max(list)`: Returns the larger value, or maximum of a list.
-- `min(a, b)` / `min(list)`: Returns the smaller value, or minimum of a list.
+- `max(a, b, ...)` / `max(list)`: Maximum of arguments or a list.
+- `min(a, b, ...)` / `min(list)`: Minimum of arguments or a list.
 - `sign(n)`: Returns -1, 0, or 1.
 - `sqrt(n)`: Square root.
 - `exp(n)`: e raised to the power `n`.
@@ -289,6 +289,8 @@ You can validate an expression's syntax and function calls without executing it:
 {:error, %ExCellerate.Error{}} = ExCellerate.validate("invalid(1, 2)")
 ```
 
+Validation checks syntax, function existence, and arity. However, ExCellerate does not perform type checking — scope values are not known until runtime, so type mismatches (e.g., passing a number to a string function like `upper(price)`) will only be caught at evaluation time with a descriptive runtime error.
+
 ## Pre-compilation
 
 For maximum performance, you can compile an expression once and reuse it with different scopes. The compiled function skips parsing and AST generation on subsequent calls:
@@ -415,6 +417,7 @@ MyApp.Registry.eval!("max(10, 20)")
 
 - **First-run Overhead**: The very first time an expression is encountered, it must be parsed and compiled. Subsequent calls use the cache.
 - **Static Resolution**: All function names must be registered at compile time. Functions cannot be passed dynamically in the scope — use a custom `ExCellerate.Registry` instead.
+- **No Type Checking**: Expressions are not statically typed. Validation confirms syntax, function existence, and arity, but type mismatches (e.g., `upper(42)`) are only caught at runtime.
 
 ## Security
 

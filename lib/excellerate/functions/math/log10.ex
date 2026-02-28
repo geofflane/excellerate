@@ -10,4 +10,10 @@ defmodule ExCellerate.Functions.Math.Log10 do
 
   @impl true
   def call([n]) when is_number(n), do: :math.log10(n)
+
+  def call([other]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a number, got: #{inspect(other)}",
+      type: :runtime
+  end
 end

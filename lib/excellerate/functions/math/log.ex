@@ -12,4 +12,10 @@ defmodule ExCellerate.Functions.Math.Log do
   def call([value, base]) when is_number(value) and is_number(base) do
     :math.log(value) / :math.log(base)
   end
+
+  def call([value, base]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects two numbers, got: #{inspect(value)}, #{inspect(base)}",
+      type: :runtime
+  end
 end

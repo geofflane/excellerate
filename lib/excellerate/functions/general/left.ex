@@ -12,4 +12,10 @@ defmodule ExCellerate.Functions.General.Left do
   def call([str, n]) when is_binary(str) and is_integer(n) do
     String.slice(str, 0, n)
   end
+
+  def call([str, n]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a string and an integer, got: #{inspect(str)}, #{inspect(n)}",
+      type: :runtime
+  end
 end

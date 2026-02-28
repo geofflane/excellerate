@@ -10,5 +10,5 @@ defmodule ExCellerate.Functions.Math.Min do
 
   @impl true
   def call([list]) when is_list(list), do: Enum.min(list)
-  def call([a, b]), do: min(a, b)
+  def call(args), do: Enum.min(args)
 end

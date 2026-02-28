@@ -10,5 +10,5 @@ defmodule ExCellerate.Functions.Math.Max do
 
   @impl true
   def call([list]) when is_list(list), do: Enum.max(list)
-  def call([a, b]), do: max(a, b)
+  def call(args), do: Enum.max(args)
 end

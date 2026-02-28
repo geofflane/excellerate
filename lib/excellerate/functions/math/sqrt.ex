@@ -13,7 +13,13 @@ defmodule ExCellerate.Functions.Math.Sqrt do
 
   def call([n]) when is_number(n) do
     raise ExCellerate.Error,
-      message: "sqrt requires a non-negative number, got #{n}",
+      message: "#{name()} requires a non-negative number, got #{n}",
+      type: :runtime
+  end
+
+  def call([other]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a number, got: #{inspect(other)}",
       type: :runtime
   end
 end

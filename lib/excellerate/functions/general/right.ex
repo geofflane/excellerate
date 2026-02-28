@@ -18,4 +18,10 @@ defmodule ExCellerate.Functions.General.Right do
       String.slice(str, len - n, n)
     end
   end
+
+  def call([str, n]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects a string and an integer, got: #{inspect(str)}, #{inspect(n)}",
+      type: :runtime
+  end
 end

@@ -16,4 +16,10 @@ defmodule ExCellerate.Functions.General.Find do
       :nomatch -> -1
     end
   end
+
+  def call([search, text]) do
+    raise ExCellerate.Error,
+      message: "#{name()} expects two strings, got: #{inspect(search)}, #{inspect(text)}",
+      type: :runtime
+  end
 end
