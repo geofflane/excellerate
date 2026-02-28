@@ -112,9 +112,25 @@ defmodule ExCellerate do
       # scores[1] from each row
       ExCellerate.eval!("rows[*].scores[1]", scope)
 
-  Nested `[*]` operators flatten across levels:
+   Nested `[*]` operators flatten across levels:
 
-      # departments[*].employees[*].name => all employee names, flattened
+       # departments[*].employees[*].name => all employee names, flattened
+
+  ### Computed Spread (`.(expr)`)
+
+  To evaluate an expression *per element* of a spread, use the `.(expr)`
+  syntax. Inside the parentheses, bare variable names resolve against each
+  element rather than the outer scope:
+
+      ExCellerate.eval!("orders[*].(qty * price)", scope)
+      # => [20, 25]   (per-row product)
+
+      ExCellerate.eval!("sum(orders[*].(qty * price))", scope)
+      # => 45          (total of per-row products)
+
+  Computed spreads also compose with nested `[*]`:
+
+      # departments[*].employees[*].(salary * 12)  => annualised salaries, flattened
   """
 
   alias ExCellerate.Compiler

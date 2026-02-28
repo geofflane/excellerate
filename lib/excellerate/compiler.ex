@@ -205,6 +205,38 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  defp to_elixir_ast({spread_type, target, expr}, registry)
+       when spread_type in [:computed_spread, :flat_computed_spread] do
+    target_ast = to_elixir_ast(target, registry)
+    list_var = Macro.unique_var(:spread_list, __MODULE__)
+    item_var = Macro.unique_var(:spread_item, __MODULE__)
+
+    # Compile the inner expression. It references variables via :get_var,
+    # which normally looks them up in @scope_var. We need each element to
+    # be the scope for the inner expression, so we bind @scope_var to the
+    # current item inside the mapping function.
+    scope_var = @scope_var
+    inner_ast = to_elixir_ast(expr, registry)
+
+    spread_fn =
+      case spread_type do
+        :computed_spread -> :spread
+        :flat_computed_spread -> :flat_spread
+      end
+
+    quote do
+      unquote(list_var) = unquote(target_ast)
+
+      ExCellerate.Compiler.unquote(spread_fn)(
+        unquote(list_var),
+        fn unquote(item_var) ->
+          unquote(scope_var) = unquote(item_var)
+          unquote(inner_ast)
+        end
+      )
+    end
+  end
+
   defp to_elixir_ast({spread_type, target, path}, registry)
        when spread_type in [:spread, :flat_spread] do
     target_ast = to_elixir_ast(target, registry)

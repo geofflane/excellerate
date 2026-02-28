@@ -187,4 +187,83 @@ defmodule ExCellerate.SpreadTest do
       assert ExCellerate.eval!("teams[*].members[0].name", scope) == ["Alice", "Carol"]
     end
   end
+
+  describe "computed spread" do
+    setup do
+      scope = %{
+        "orders" => [
+          %{"product" => "Widget", "price" => 10, "qty" => 2},
+          %{"product" => "Gadget", "price" => 25, "qty" => 1},
+          %{"product" => "Thing", "price" => 5, "qty" => 10}
+        ]
+      }
+
+      {:ok, scope: scope}
+    end
+
+    test "per-row arithmetic", %{scope: scope} do
+      assert ExCellerate.eval!("orders[*].(qty * price)", scope) == [20, 25, 50]
+    end
+
+    test "aggregate over computed spread", %{scope: scope} do
+      assert ExCellerate.eval!("sum(orders[*].(qty * price))", scope) == 95
+    end
+
+    test "avg over computed spread", %{scope: scope} do
+      assert_in_delta ExCellerate.eval!("avg(orders[*].(qty * price))", scope), 31.666, 0.01
+    end
+
+    test "max over computed spread", %{scope: scope} do
+      assert ExCellerate.eval!("max(orders[*].(qty * price))", scope) == 50
+    end
+
+    test "computed spread with function calls", %{scope: scope} do
+      assert ExCellerate.eval!("orders[*].(upper(product))", scope) ==
+               ["WIDGET", "GADGET", "THING"]
+    end
+
+    test "computed spread with string concatenation", %{scope: scope} do
+      assert ExCellerate.eval!("orders[*].(concat(product, ': ', qty))", scope) ==
+               ["Widget: 2", "Gadget: 1", "Thing: 10"]
+    end
+
+    test "computed spread with ternary", %{scope: scope} do
+      assert ExCellerate.eval!("orders[*].(qty > 5 ? 'bulk' : 'single')", scope) ==
+               ["single", "single", "bulk"]
+    end
+
+    test "computed spread with complex expression", %{scope: scope} do
+      # qty * price with 10% tax
+      result = ExCellerate.eval!("orders[*].(qty * price * 1.1)", scope)
+      assert_in_delta Enum.at(result, 0), 22.0, 0.01
+      assert_in_delta Enum.at(result, 1), 27.5, 0.01
+      assert_in_delta Enum.at(result, 2), 55.0, 0.01
+    end
+
+    test "computed spread with nested access" do
+      scope = %{
+        "users" => [
+          %{"profile" => %{"scores" => [10, 20]}, "name" => "Alice"},
+          %{"profile" => %{"scores" => [30, 40]}, "name" => "Bob"}
+        ]
+      }
+
+      assert ExCellerate.eval!("users[*].(concat(name, ': ', profile.scores[0]))", scope) ==
+               ["Alice: 10", "Bob: 30"]
+    end
+
+    test "compiled computed spread", %{scope: scope} do
+      {:ok, fun} = ExCellerate.compile("sum(orders[*].(qty * price))")
+      assert fun.(scope) == 95
+
+      other = %{
+        "orders" => [
+          %{"price" => 100, "qty" => 3},
+          %{"price" => 200, "qty" => 2}
+        ]
+      }
+
+      assert fun.(other) == 700
+    end
+  end
 end

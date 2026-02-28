@@ -280,6 +280,57 @@ ExCellerate.eval!("departments[*].employees[*].name", scope)
 # => ["Alice", "Bob", "Carol"]
 ```
 
+### Computed Spread (`.(expr)`)
+
+To evaluate an expression *per element* of a spread, use the `.(expr)` syntax.
+Inside the parentheses, bare variable names resolve against each element rather
+than the outer scope:
+
+```elixir
+scope = %{
+  "orders" => [
+    %{"product" => "Widget", "price" => 10, "qty" => 2},
+    %{"product" => "Gadget", "price" => 25, "qty" => 1}
+  ]
+}
+
+# Per-row product of qty * price
+ExCellerate.eval!("orders[*].(qty * price)", scope)
+# => [20, 25]
+
+# Sum of per-row products
+ExCellerate.eval!("sum(orders[*].(qty * price))", scope)
+# => 45
+```
+
+You can use any expression inside `.(...)`, including function calls and nested
+access:
+
+```elixir
+ExCellerate.eval!("orders[*].(upper(product))", scope)
+# => ["WIDGET", "GADGET"]
+```
+
+Computed spreads also compose with nested `[*]`:
+
+```elixir
+scope = %{
+  "departments" => [
+    %{"employees" => [
+      %{"name" => "Alice", "salary" => 5000},
+      %{"name" => "Bob", "salary" => 6000}
+    ]},
+    %{"employees" => [
+      %{"name" => "Carol", "salary" => 5500}
+    ]}
+  ]
+}
+
+# Annualised salaries for all employees, flattened
+ExCellerate.eval!("departments[*].employees[*].(salary * 12)", scope)
+# => [60000, 72000, 66000]
+```
+
 ## Validation
 
 You can validate an expression's syntax and function calls without executing it:

@@ -109,6 +109,11 @@ defmodule ExCellerate.Parser do
     identifier
     |> repeat(
       choice([
+        # Computed spread: .(expr) — must be tried before plain dot access
+        ignore(string(".("))
+        |> parsec(:expression)
+        |> ignore(string(")"))
+        |> map({__MODULE__, :make_computed_access, []}),
         ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
         ignore(string("[*]")) |> replace({:spread}),
         ignore(string("["))
@@ -364,6 +369,7 @@ defmodule ExCellerate.Parser do
 
   def make_dot_access(key), do: {:dot, key}
   def make_bracket_access(index), do: {:bracket, index}
+  def make_computed_access(expr), do: {:computed, expr}
   def make_call_access([]), do: {:call, []}
   def make_call_access(args), do: {:call, args}
 
@@ -395,20 +401,35 @@ defmodule ExCellerate.Parser do
   # After encountering [*], subsequent accessors are collected as a path
   # to be mapped over. A nested [*] produces a :flat_spread node so
   # results are flattened across levels.
+  # A computed accessor .(expr) produces a :computed_spread node.
   defp build_spread_chain(target, accessors, flat? \\ false) do
-    {path, remaining} = collect_spread_path(accessors, [])
-    spread = if flat?, do: {:flat_spread, target, path}, else: {:spread, target, path}
+    case accessors do
+      [{:computed, expr} | rest] ->
+        # Computed spread: evaluate expr per element
+        spread = {:computed_spread, target, expr}
+        spread = if flat?, do: {:flat_computed_spread, target, expr}, else: spread
 
-    case remaining do
-      [] -> spread
-      [{:spread} | rest] -> build_spread_chain(spread, rest, true)
-      _ -> build_access_chain(spread, remaining)
+        case rest do
+          [] -> spread
+          _ -> build_access_chain(spread, rest)
+        end
+
+      _ ->
+        {path, remaining} = collect_spread_path(accessors, [])
+        spread = if flat?, do: {:flat_spread, target, path}, else: {:spread, target, path}
+
+        case remaining do
+          [] -> spread
+          [{:spread} | rest] -> build_spread_chain(spread, rest, true)
+          _ -> build_access_chain(spread, remaining)
+        end
     end
   end
 
   defp collect_spread_path([], acc), do: {Enum.reverse(acc), []}
   defp collect_spread_path([{:spread} | rest], acc), do: {Enum.reverse(acc), [{:spread} | rest]}
   defp collect_spread_path([{:call, _} | _] = rest, acc), do: {Enum.reverse(acc), rest}
+  defp collect_spread_path([{:computed, _} | _] = rest, acc), do: {Enum.reverse(acc), rest}
 
   defp collect_spread_path([{:dot, key} | rest], acc),
     do: collect_spread_path(rest, [{:key, key} | acc])
