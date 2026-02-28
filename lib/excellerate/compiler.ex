@@ -249,6 +249,112 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  defp to_elixir_ast({spread_type, target, path}, registry)
+       when spread_type in [:spread, :flat_spread] do
+    target_ast = to_elixir_ast(target, registry)
+    list_var = Macro.unique_var(:spread_list, __MODULE__)
+    item_var = Macro.unique_var(:spread_item, __MODULE__)
+
+    # Build the accessor chain that runs on each item.
+    body_ast = build_spread_body(item_var, path, registry)
+
+    spread_fn =
+      case spread_type do
+        :spread -> :spread
+        :flat_spread -> :flat_spread
+      end
+
+    quote do
+      unquote(list_var) = unquote(target_ast)
+
+      ExCellerate.Compiler.unquote(spread_fn)(
+        unquote(list_var),
+        fn unquote(item_var) -> unquote(body_ast) end
+      )
+    end
+  end
+
+  # Called from generated AST to map over a list for [*] spread.
+  @doc false
+  def spread(list, fun) when is_list(list) do
+    Enum.map(list, fun)
+  end
+
+  def spread(value, _fun) do
+    raise ExCellerate.Error,
+      message: "spread [*] requires a list, got #{inspect(value)}",
+      type: :runtime
+  end
+
+  # Called from generated AST for nested [*] — flattens the input
+  # (which is a list of lists from the previous spread), then maps
+  # the function over each element.
+  @doc false
+  def flat_spread(list, fun) when is_list(list) do
+    list
+    |> List.flatten()
+    |> Enum.map(fun)
+  end
+
+  def flat_spread(value, _fun) do
+    raise ExCellerate.Error,
+      message: "spread [*] requires a list, got #{inspect(value)}",
+      type: :runtime
+  end
+
+  # Builds the AST that accesses nested fields within each spread item.
+  defp build_spread_body(item_var, [], _registry), do: item_var
+
+  defp build_spread_body(item_var, [{:key, key} | rest], registry) do
+    access_ast =
+      quote do
+        ExCellerate.Compiler.spread_access(unquote(item_var), unquote(key))
+      end
+
+    build_spread_body(access_ast, rest, registry)
+  end
+
+  defp build_spread_body(item_var, [{:index, index_expr} | rest], registry) do
+    index_ast = to_elixir_ast(index_expr, registry)
+
+    access_ast =
+      quote do
+        ExCellerate.Compiler.spread_access(unquote(item_var), unquote(index_ast))
+      end
+
+    build_spread_body(access_ast, rest, registry)
+  end
+
+  # Called from generated AST to access a field/index on a spread item.
+  # Handles maps (string and atom keys), structs, and list indexing.
+  @doc false
+  def spread_access(target, key) when is_map(target) and is_binary(key) do
+    case Map.fetch(target, key) do
+      {:ok, val} ->
+        val
+
+      :error ->
+        try do
+          case Map.fetch(target, String.to_existing_atom(key)) do
+            {:ok, val} -> val
+            :error -> nil
+          end
+        rescue
+          ArgumentError -> nil
+        end
+    end
+  end
+
+  def spread_access(target, index) when is_list(target) and is_integer(index) do
+    Enum.at(target, index)
+  end
+
+  def spread_access(target, key) when is_map(target) and is_atom(key) do
+    Map.get(target, key)
+  end
+
+  def spread_access(_, _), do: nil
+
   defp to_elixir_ast({:call, target, args}, registry) do
     # For :call, we want to try resolving the target as a function/module
     # BUT we need to handle the case where it's a raw variable name that

@@ -110,6 +110,7 @@ defmodule ExCellerate.Parser do
     |> repeat(
       choice([
         ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
+        ignore(string("[*]")) |> replace({:spread}),
         ignore(string("["))
         |> parsec(:expression)
         |> ignore(string("]"))
@@ -368,13 +369,52 @@ defmodule ExCellerate.Parser do
 
   def build_access([name | accessors]) do
     initial = {:get_var, name}
-
-    Enum.reduce(accessors, initial, fn
-      {:dot, key}, acc -> {:access, acc, key}
-      {:bracket, index}, acc -> {:access, acc, index}
-      {:call, args}, acc -> {:call, acc, args}
-    end)
+    build_access_chain(initial, accessors)
   end
+
+  # Builds the IR for an access chain, handling [*] spread markers.
+  # Before a spread, accessors produce normal :access/:call nodes.
+  # At a spread, we switch to collecting the remaining chain into a :spread node.
+  defp build_access_chain(acc, []), do: acc
+
+  defp build_access_chain(acc, [{:spread} | rest]) do
+    build_spread_chain(acc, rest)
+  end
+
+  defp build_access_chain(acc, [head | rest]) do
+    next =
+      case head do
+        {:dot, key} -> {:access, acc, key}
+        {:bracket, index} -> {:access, acc, index}
+        {:call, args} -> {:call, acc, args}
+      end
+
+    build_access_chain(next, rest)
+  end
+
+  # After encountering [*], subsequent accessors are collected as a path
+  # to be mapped over. A nested [*] produces a :flat_spread node so
+  # results are flattened across levels.
+  defp build_spread_chain(target, accessors, flat? \\ false) do
+    {path, remaining} = collect_spread_path(accessors, [])
+    spread = if flat?, do: {:flat_spread, target, path}, else: {:spread, target, path}
+
+    case remaining do
+      [] -> spread
+      [{:spread} | rest] -> build_spread_chain(spread, rest, true)
+      _ -> build_access_chain(spread, remaining)
+    end
+  end
+
+  defp collect_spread_path([], acc), do: {Enum.reverse(acc), []}
+  defp collect_spread_path([{:spread} | rest], acc), do: {Enum.reverse(acc), [{:spread} | rest]}
+  defp collect_spread_path([{:call, _} | _] = rest, acc), do: {Enum.reverse(acc), rest}
+
+  defp collect_spread_path([{:dot, key} | rest], acc),
+    do: collect_spread_path(rest, [{:key, key} | acc])
+
+  defp collect_spread_path([{:bracket, index} | rest], acc),
+    do: collect_spread_path(rest, [{:index, index} | acc])
 
   def make_unary([op, operand]), do: {op, [], [operand]}
 

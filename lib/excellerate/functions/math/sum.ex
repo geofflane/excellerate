@@ -1,6 +1,6 @@
 defmodule ExCellerate.Functions.Math.Sum do
   @moduledoc false
-  # Internal: Implements the 'sum' function — sums a variable number of arguments.
+  # Internal: Implements the 'sum' function — sums arguments or a list.
   @behaviour ExCellerate.Function
 
   @impl true
@@ -9,5 +9,6 @@ defmodule ExCellerate.Functions.Math.Sum do
   def arity, do: :any
 
   @impl true
+  def call([list]) when is_list(list), do: Enum.sum(list)
   def call(args), do: Enum.sum(args)
 end

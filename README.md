@@ -7,7 +7,7 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - **Blazing Fast**: Compiles expressions to native Elixir code and caches the results using ETS for near-instant repeated evaluations.
 - **Robust Error System**: Detailed error reporting for Parsing, Compilation, and Runtime issues via `ExCellerate.Error`.
 - **Validation Support**: Built-in `validate/1` to check syntax and function existence without execution.
-- **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`) and lists (`data[0]`).
+- **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`), lists (`data[0]`), structs, and column spreads (`orders[*].price`).
 
 ## Built-in Functions
 
@@ -26,20 +26,20 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `floor(n)`: Largest integer less than or equal to `n`.
 - `ceil(n)`: Smallest integer greater than or equal to `n`.
 - `trunc(n)`: Truncates toward zero (unlike `floor` for negatives).
-- `max(a, b)`: Returns the larger value.
-- `min(a, b)`: Returns the smaller value.
+- `max(a, b)` / `max(list)`: Returns the larger value, or maximum of a list.
+- `min(a, b)` / `min(list)`: Returns the smaller value, or minimum of a list.
 - `sign(n)`: Returns -1, 0, or 1.
 - `sqrt(n)`: Square root.
 - `exp(n)`: e raised to the power `n`.
 - `ln(n)`: Natural logarithm (base e).
 - `log(n, base)`: Logarithm with specified base.
 - `log10(n)`: Base-10 logarithm.
-- `sum(a, b, ...)`: Sums any number of arguments.
-- `avg(a, b, ...)`: Arithmetic mean of arguments.
+- `sum(a, b, ...)` / `sum(list)`: Sums arguments or a list.
+- `avg(a, b, ...)` / `avg(list)`: Arithmetic mean of arguments or a list.
 
 ### String Functions
 
-- `len(s)`: String length.
+- `len(s)` / `len(list)`: String length or list length.
 - `left(s, n)`: First `n` characters.
 - `right(s, n)`: Last `n` characters.
 - `substring(s, start, length \\ nil)`: Substring by position and optional length.
@@ -206,6 +206,78 @@ ExCellerate.eval!("name", %{name: "Alice"})
 
 ExCellerate.eval!("host", URI.parse("https://example.com"))
 # => "example.com"
+```
+
+### Column Spread (`[*]`)
+
+The `[*]` operator extracts a field from every element in a list, enabling column-oriented operations on tabular data:
+
+```elixir
+scope = %{
+  "orders" => [
+    %{"product" => "Widget", "price" => 10, "qty" => 2},
+    %{"product" => "Gadget", "price" => 25, "qty" => 1},
+    %{"product" => "Thing",  "price" => 5,  "qty" => 10}
+  ]
+}
+
+ExCellerate.eval!("orders[*].product", scope)
+# => ["Widget", "Gadget", "Thing"]
+
+ExCellerate.eval!("sum(orders[*].price)", scope)
+# => 40
+
+ExCellerate.eval!("avg(orders[*].qty)", scope)
+# => 4.333...
+
+ExCellerate.eval!("max(orders[*].price)", scope)
+# => 25
+
+ExCellerate.eval!("textjoin(', ', orders[*].product)", scope)
+# => "Widget, Gadget, Thing"
+```
+
+Access chains after `[*]` apply to each element, so deep nesting works naturally:
+
+```elixir
+scope = %{
+  "users" => [
+    %{"profile" => %{"name" => "Alice"}},
+    %{"profile" => %{"name" => "Bob"}}
+  ]
+}
+
+ExCellerate.eval!("users[*].profile.name", scope)
+# => ["Alice", "Bob"]
+```
+
+You can also index into sub-lists after a spread:
+
+```elixir
+scope = %{
+  "rows" => [
+    %{"scores" => [10, 20, 30]},
+    %{"scores" => [40, 50, 60]}
+  ]
+}
+
+# Get the second score from each row
+ExCellerate.eval!("rows[*].scores[1]", scope)
+# => [20, 50]
+```
+
+Nested `[*]` operators flatten across levels:
+
+```elixir
+scope = %{
+  "departments" => [
+    %{"employees" => [%{"name" => "Alice"}, %{"name" => "Bob"}]},
+    %{"employees" => [%{"name" => "Carol"}]}
+  ]
+}
+
+ExCellerate.eval!("departments[*].employees[*].name", scope)
+# => ["Alice", "Bob", "Carol"]
 ```
 
 ## Validation

@@ -10,6 +10,8 @@ defmodule ExCellerate.Functions.General.TextJoin do
 
   @impl true
   def call([delimiter | values]) do
-    Enum.map_join(values, to_string(delimiter), &to_string/1)
+    values
+    |> List.flatten()
+    |> Enum.map_join(to_string(delimiter), &to_string/1)
   end
 end

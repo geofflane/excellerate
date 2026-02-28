@@ -12,7 +12,7 @@ defmodule ExCellerate do
   - **Logical**: `&&`, `||`, `not`
   - **Bitwise**: `&`, `|`, `|^` (xor), `<<`, `>>`, `~` (bnot)
   - **Ternary**: `condition ? true_val : false_val`
-  - **Data access**: `user.profile.name`, `list[0]`
+  - **Data access**: `user.profile.name`, `list[0]`, `list[*].field` (spread)
 
   ## Built-in Functions
 
@@ -25,22 +25,22 @@ defmodule ExCellerate do
   | `floor(n)` | Largest integer ≤ `n` |
   | `ceil(n)` | Smallest integer ≥ `n` |
   | `trunc(n)` | Truncates toward zero (unlike `floor` for negatives) |
-  | `max(a, b)` | Returns the larger value |
-  | `min(a, b)` | Returns the smaller value |
+  | `max(a, b)` or `max(list)` | Returns the larger value, or maximum of a list |
+  | `min(a, b)` or `min(list)` | Returns the smaller value, or minimum of a list |
   | `sign(n)` | Returns -1, 0, or 1 |
   | `sqrt(n)` | Square root |
   | `exp(n)` | e raised to the power `n` |
   | `ln(n)` | Natural logarithm (base e) |
   | `log(n, base)` | Logarithm with specified base |
   | `log10(n)` | Base-10 logarithm |
-  | `sum(a, b, ...)` | Sums any number of arguments |
-  | `avg(a, b, ...)` | Arithmetic mean |
+  | `sum(a, b, ...)` or `sum(list)` | Sums arguments or a list |
+  | `avg(a, b, ...)` or `avg(list)` | Arithmetic mean of arguments or a list |
 
   ### String
 
   | Function | Description |
   |----------|-------------|
-  | `len(s)` | String length |
+  | `len(s)` or `len(list)` | String length or list length |
   | `left(s, n)` | First `n` characters |
   | `right(s, n)` | Last `n` characters |
   | `substring(s, start)` | Substring from `start` to end |
@@ -80,6 +80,41 @@ defmodule ExCellerate do
 
       iex> ExCellerate.eval!("user.name", %{"user" => %{"name" => "Alice"}})
       "Alice"
+
+  ## Column Spread (`[*]`)
+
+  The `[*]` operator extracts a field from every element of a list,
+  returning a new list of values. This enables column-oriented operations
+  on lists of maps, structs, or nested lists:
+
+      # Given a list of maps in scope
+      scope = %{"orders" => [
+        %{"product" => "Widget", "price" => 10, "qty" => 2},
+        %{"product" => "Gadget", "price" => 25, "qty" => 1}
+      ]}
+
+      ExCellerate.eval!("orders[*].product", scope)
+      # => ["Widget", "Gadget"]
+
+      ExCellerate.eval!("sum(orders[*].price)", scope)
+      # => 35
+
+  Spread results work with any function that accepts a list: `sum`, `avg`,
+  `max`, `min`, `len`, and `textjoin`. Subsequent access chains apply to
+  each element:
+
+      ExCellerate.eval!("orders[*].price", scope)       # => [10, 25]
+      ExCellerate.eval!("users[*].profile.name", scope)  # deep access
+
+  Bracket indexing after a spread selects a specific position from each
+  element's sub-list:
+
+      # scores[1] from each row
+      ExCellerate.eval!("rows[*].scores[1]", scope)
+
+  Nested `[*]` operators flatten across levels:
+
+      # departments[*].employees[*].name => all employee names, flattened
   """
 
   alias ExCellerate.Compiler
