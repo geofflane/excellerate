@@ -5,16 +5,70 @@ defmodule ExCellerate do
   It parses text expressions into an intermediate representation (IR) and then
   compiles them into native Elixir AST for near-native performance.
 
-  ## Features
+  ## Operators
 
-  - Arithmetic operators: `+`, `-`, `*`, `/`, `^`, `%`
-  - Comparison operators: `==`, `!=`, `<`, `<=`, `>`, `>=`
-  - Logical operators: `&&`, `||`, `!` (not)
-  - Bitwise operators: `&&&`, `|||`, `^^^`, `<<<`, `>>>`, `~~~` (bnot)
-  - Ternary operator: `condition ? true_val : false_val`
-  - Factorial: `n!`
-  - Nested data access: `user.profile.name` or `list.0`
-  - Custom functions via a Registry system.
+  - **Arithmetic**: `+`, `-`, `*`, `/`, `^` (power), `%` (modulo), `n!` (factorial)
+  - **Comparison**: `==`, `!=`, `<`, `<=`, `>`, `>=`
+  - **Logical**: `&&`, `||`, `not`
+  - **Bitwise**: `&`, `|`, `|^` (xor), `<<`, `>>`, `~` (bnot)
+  - **Ternary**: `condition ? true_val : false_val`
+  - **Data access**: `user.profile.name`, `list[0]`
+
+  ## Built-in Functions
+
+  ### Math
+
+  | Function | Description |
+  |----------|-------------|
+  | `abs(n)` | Absolute value |
+  | `round(n)` | Rounds to the nearest integer |
+  | `floor(n)` | Largest integer ≤ `n` |
+  | `ceil(n)` | Smallest integer ≥ `n` |
+  | `trunc(n)` | Truncates toward zero (unlike `floor` for negatives) |
+  | `max(a, b)` | Returns the larger value |
+  | `min(a, b)` | Returns the smaller value |
+  | `sign(n)` | Returns -1, 0, or 1 |
+  | `sqrt(n)` | Square root |
+  | `exp(n)` | e raised to the power `n` |
+  | `ln(n)` | Natural logarithm (base e) |
+  | `log(n, base)` | Logarithm with specified base |
+  | `log10(n)` | Base-10 logarithm |
+  | `sum(a, b, ...)` | Sums any number of arguments |
+  | `avg(a, b, ...)` | Arithmetic mean |
+
+  ### String
+
+  | Function | Description |
+  |----------|-------------|
+  | `len(s)` | String length |
+  | `left(s, n)` | First `n` characters |
+  | `right(s, n)` | Last `n` characters |
+  | `substring(s, start)` | Substring from `start` to end |
+  | `substring(s, start, len)` | Substring of `len` characters |
+  | `upper(s)` | Converts to uppercase |
+  | `lower(s)` | Converts to lowercase |
+  | `trim(s)` | Removes leading/trailing whitespace |
+  | `concat(a, b, ...)` | Concatenates values into a string |
+  | `textjoin(delim, a, b, ...)` | Joins values with a delimiter |
+  | `replace(s, old, new)` | Replaces all occurrences of `old` with `new` |
+  | `find(search, text)` | 0-based position of `search` in `text`, or -1 |
+  | `contains(s, term)` | Returns `true` if `term` exists within `s` |
+  | `normalize(s)` | Downcases and replaces spaces with underscores |
+
+  ### Utility
+
+  | Function | Description |
+  |----------|-------------|
+  | `if(cond, t, f)` | Returns `t` if `cond` is truthy, otherwise `f` |
+  | `ifnull(val, default)` | Returns `default` if `val` is nil |
+  | `coalesce(a, b, ...)` | Returns the first non-nil value |
+  | `switch(expr, c1, v1, ..., default)` | Multi-way value matching |
+  | `and(a, b, ...)` | Returns `true` if all arguments are truthy |
+  | `or(a, b, ...)` | Returns `true` if any argument is truthy |
+  | `lookup(coll, key)` | Looks up `key` in a map or index in a list |
+  | `lookup(coll, key, default)` | Same, with a default for missing keys |
+
+  Custom functions can be added via the `ExCellerate.Registry` system.
 
   ## Examples
 
@@ -37,14 +91,14 @@ defmodule ExCellerate do
   @doc """
   Evaluates a text expression against an optional scope and registry.
 
-  Returns `{:ok, result}` on success or `{:error, reason}` on failure.
-  See `eval!/3` for a version that returns the bare result or raises.
+  Returns `{:ok, result}` on success or `{:error, %ExCellerate.Error{}}` on failure.
 
   ## Parameters
 
-  - `expression`: A string containing the ExCellerate expression.
-  - `scope`: A map of variables available to the expression. Defaults to `%{}`.
-  - `registry`: An optional module that implements the ExCellerate.Registry behaviour.
+  - `expression` — a string containing the expression.
+  - `scope` — a map of variables available to the expression. Supports string
+    keys, atom keys, and structs. Defaults to `%{}`.
+  - `registry` — an optional module created with `use ExCellerate.Registry`.
 
   ## Examples
 
@@ -76,38 +130,12 @@ defmodule ExCellerate do
   end
 
   @doc """
-  Evaluates a text expression, returning the bare result or raising on error.
-
-  This is the "bang" variant of `eval/3`. It returns the result directly
-  on success, or raises the error as an exception on failure.
-
-  ## Parameters
-
-  - `expression`: A string containing the ExCellerate expression.
-  - `scope`: A map of variables available to the expression. Defaults to `%{}`.
-  - `registry`: An optional module that implements the ExCellerate.Registry behaviour.
-
-  ## Supported Operators
-
-  - **Arithmetic**: `+`, `-`, `*`, `/`, `^` (power), `%` (modulo), `n!` (factorial)
-  - **Comparison**: `==`, `!=`, `<`, `<=`, `>`, `>=`
-  - **Logical**: `&&`, `||`, `!`, `not`
-  - **Bitwise**: `&&&`, `|||`, `^^^`, `<<<`, `>>>`, `~~~` (bnot)
-  - **Ternary**: `condition ? true_val : false_val`
-
-  ## Built-in Functions
-
-  - **Math**: `abs`, `round`, `floor`, `ceil`, `trunc`, `max`, `min`, `sign`, `sqrt`, `exp`, `ln`, `log`, `log10`, `sum`, `avg`
-  - **String**: `len`, `left`, `right`, `substring`, `upper`, `lower`, `trim`, `concat`, `textjoin`, `replace`, `find`, `contains`, `normalize`
-  - **Utility**: `if`, `ifnull`, `coalesce`, `switch`, `and`, `or`, `lookup`
+  Similar to `eval/3`, but returns the result directly or raises on error.
 
   ## Examples
 
       iex> ExCellerate.eval!("1 + 2 * 3")
       7
-
-      iex> ExCellerate.eval!("5!")
-      120
 
       iex> ExCellerate.eval!("a > 10 ? 'high' : 'low'", %{"a" => 15})
       "high"
@@ -118,10 +146,6 @@ defmodule ExCellerate do
       iex> ExCellerate.eval!("user.profile.id", %{"user" => %{"profile" => %{"id" => 1}}})
       1
 
-  ## Raises
-
-  - `ExCellerate.Error` if parsing or compilation fails.
-  - Any exception raised during evaluation.
   """
   @spec eval!(String.t(), scope(), registry()) :: any()
   def eval!(expression, scope \\ %{}, registry \\ nil) do
@@ -168,10 +192,7 @@ defmodule ExCellerate do
   end
 
   @doc """
-  Compiles an expression into a reusable function, raising on error.
-
-  Returns the compiled function directly, or raises `ExCellerate.Error`
-  if the expression is invalid.
+  Similar to `compile/2`, but returns the function directly or raises on error.
 
   ## Examples
 
