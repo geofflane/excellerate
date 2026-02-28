@@ -874,10 +874,43 @@ defmodule ExCellerateTest do
       # Match only keys for THIS registry
       count =
         :ets.select_count(:excellerate_cache, [
-          {{{LimitRegistry, :_}, :_}, [], [true]}
+          {{{LimitRegistry, :_}, :_, :_}, [], [true]}
         ])
 
       assert count <= 2
+    end
+
+    test "LRU eviction removes least recently used entry" do
+      # LimitRegistry has cache_limit: 2
+      # Insert two entries
+      LimitRegistry.eval!("10 + 1")
+      LimitRegistry.eval!("10 + 2")
+
+      # Access the first one again to make it most-recently-used
+      LimitRegistry.eval!("10 + 1")
+
+      # Insert a third — should evict "10 + 2" (least recently used), not "10 + 1"
+      LimitRegistry.eval!("10 + 3")
+
+      # "10 + 1" should still be cached (it was accessed more recently)
+      assert ExCellerate.Cache.get(LimitRegistry, "10 + 1") != :error
+
+      # "10 + 2" should have been evicted (least recently used)
+      assert ExCellerate.Cache.get(LimitRegistry, "10 + 2") == :error
+    end
+
+    test "LRU eviction keeps most recently inserted when no re-access" do
+      # Insert three entries with limit 2
+      LimitRegistry.eval!("20 + 1")
+      LimitRegistry.eval!("20 + 2")
+      LimitRegistry.eval!("20 + 3")
+
+      # The first entry should be evicted
+      assert ExCellerate.Cache.get(LimitRegistry, "20 + 1") == :error
+
+      # The two most recent should remain
+      assert ExCellerate.Cache.get(LimitRegistry, "20 + 2") != :error
+      assert ExCellerate.Cache.get(LimitRegistry, "20 + 3") != :error
     end
 
     test "caching can be disabled per registry" do

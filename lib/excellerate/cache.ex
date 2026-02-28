@@ -1,6 +1,11 @@
 defmodule ExCellerate.Cache do
   @moduledoc """
-  ETS-backed cache for compiled expression ASTs.
+  ETS-backed LRU cache for compiled expression functions.
+
+  Each entry stores `{full_key, value, last_accessed}` where `last_accessed`
+  is a monotonically increasing integer from `:erlang.unique_integer([:monotonic])`.
+  The timestamp is updated on every `get` hit via `:ets.update_element/3`,
+  so eviction always removes the least recently used entry.
 
   The cache must be started as part of your application's supervision tree
   for caching to work. If it is not started, expressions will be parsed and
@@ -23,6 +28,10 @@ defmodule ExCellerate.Cache do
   @default_limit 1000
   @warn_flag :excellerate_cache_warned
 
+  # Position of the last_accessed timestamp in the ETS tuple.
+  # Tuple layout: {full_key, value, last_accessed}
+  @ts_pos 3
+
   @doc false
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -41,9 +50,16 @@ defmodule ExCellerate.Cache do
   @doc false
   def get(registry, key) do
     if enabled?(registry) and table_exists?() do
-      case :ets.lookup(@table_name, {registry, key}) do
-        [{_, value}] -> {:ok, value}
-        [] -> :error
+      full_key = {registry, key}
+
+      case :ets.lookup(@table_name, full_key) do
+        [{_, value, _ts}] ->
+          # Touch: update last_accessed timestamp to mark as recently used.
+          :ets.update_element(@table_name, full_key, {@ts_pos, now()})
+          {:ok, value}
+
+        [] ->
+          :error
       end
     else
       :error
@@ -55,11 +71,11 @@ defmodule ExCellerate.Cache do
     if enabled?(registry) do
       if table_exists?() do
         full_key = {registry, key}
-        :ets.insert(@table_name, {full_key, value})
+        :ets.insert(@table_name, {full_key, value, now()})
 
         limit = get_limit(registry)
         count = count_for_registry(registry)
-        maybe_evict_for_registry(registry, count, limit)
+        maybe_evict(registry, count, limit)
       else
         maybe_warn_not_started()
       end
@@ -90,6 +106,8 @@ defmodule ExCellerate.Cache do
 
   # -- Private helpers --
 
+  defp now, do: :erlang.unique_integer([:monotonic])
+
   defp table_exists? do
     :ets.whereis(@table_name) != :undefined
   end
@@ -108,23 +126,27 @@ defmodule ExCellerate.Cache do
     end
   end
 
-  defp maybe_evict_for_registry(_registry, count, limit) when count <= limit, do: :ok
-
-  defp maybe_evict_for_registry(registry, _count, limit) do
-    evict_for_registry(registry)
-    new_count = count_for_registry(registry)
-    maybe_evict_for_registry(registry, new_count, limit)
-  end
-
   defp count_for_registry(registry) do
-    :ets.select_count(@table_name, [{{{registry, :_}, :_}, [], [true]}])
+    :ets.select_count(@table_name, [{{{registry, :_}, :_, :_}, [], [true]}])
   end
 
-  defp evict_for_registry(registry) do
-    case :ets.match(@table_name, {{registry, :"$1"}, :_}, 1) do
-      {[[key]], _} -> :ets.delete(@table_name, {registry, key})
-      _ -> :ok
-    end
+  defp maybe_evict(_registry, count, limit) when count <= limit, do: :ok
+
+  defp maybe_evict(registry, count, limit) do
+    overage = count - limit
+    evict_lru(registry, overage)
+  end
+
+  # Finds the `count` entries with the smallest last_accessed timestamps
+  # for the given registry and deletes them.
+  defp evict_lru(registry, count) do
+    # Collect {expression, timestamp} for all entries belonging to this registry.
+    entries = :ets.match(@table_name, {{registry, :"$1"}, :_, :"$2"})
+
+    entries
+    |> Enum.sort_by(fn [_expr, ts] -> ts end)
+    |> Enum.take(count)
+    |> Enum.each(fn [expr, _ts] -> :ets.delete(@table_name, {registry, expr}) end)
   end
 
   defp enabled?(nil) do

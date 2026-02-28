@@ -213,7 +213,7 @@ fun.(%{"a" => 1, "b" => 2})
 
 ## Performance & Caching
 
-ExCellerate caches compiled functions in an ETS table for fast repeated evaluations. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
+ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
 
 ```elixir
 # In your Application module (e.g., lib/my_app/application.ex)
@@ -241,6 +241,8 @@ end
 ```
 
 If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression.
+
+When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
 
 ### Global Defaults
 
