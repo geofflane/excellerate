@@ -97,9 +97,9 @@ defmodule ExCellerate do
 
   ## Built-in Functions
 
-  - **Math**: `abs(n)`, `round(n)`, `floor(n)`, `ceil(n)`, `max(a, b)`, `min(a, b)`
-  - **Utility**: `if(cond, t, f)`, `ifnull(val, default)`, `lookup(coll, key, default \\ nil)`
-  - **String**: `concat(a, b, ...)`, `normalize(s)`, `substring(s, start, len \\ nil)`, `contains(s, term)`
+  - **Math**: `abs`, `round`, `floor`, `ceil`, `trunc`, `max`, `min`, `sign`, `sqrt`, `exp`, `ln`, `log`, `log10`, `sum`, `avg`
+  - **String**: `len`, `left`, `right`, `substring`, `upper`, `lower`, `trim`, `concat`, `textjoin`, `replace`, `find`, `contains`, `normalize`
+  - **Utility**: `if`, `ifnull`, `coalesce`, `switch`, `and`, `or`, `lookup`
 
   ## Examples
 

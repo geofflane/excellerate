@@ -11,35 +11,60 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 
 ## Built-in Functions
 
-### Math
+### Operators
 
-- Arithmetic: `+`, `-`, `*`, `/`, `^`, `%`
-- Bitwise: `&&&`, `|||`, `^^^`, `<<<`, `>>>`, `~~~`
-- `abs(n)`: Absolute value of `n`.
-- `round(n)`: Rounds `n` to the nearest integer.
+- **Arithmetic**: `+`, `-`, `*`, `/`, `^` (power), `%` (modulo), `n!` (factorial)
+- **Comparison**: `==`, `!=`, `<`, `>`, `<=`, `>=`
+- **Logical**: `&&`, `||`, `not`
+- **Bitwise**: `&`, `|`, `|^` (xor), `<<`, `>>`, `~` (bnot)
+- **Ternary**: `condition ? true_val : false_val`
+
+### Math Functions
+
+- `abs(n)`: Absolute value.
+- `round(n)`: Rounds to the nearest integer.
 - `floor(n)`: Largest integer less than or equal to `n`.
 - `ceil(n)`: Smallest integer greater than or equal to `n`.
-- `max(a, b)`: Returns the larger of `a` and `b`.
-- `min(a, b)`: Returns the smaller of `a` and `b`.
+- `trunc(n)`: Truncates toward zero (unlike `floor` for negatives).
+- `max(a, b)`: Returns the larger value.
+- `min(a, b)`: Returns the smaller value.
+- `sign(n)`: Returns -1, 0, or 1.
+- `sqrt(n)`: Square root.
+- `exp(n)`: e raised to the power `n`.
+- `ln(n)`: Natural logarithm (base e).
+- `log(n, base)`: Logarithm with specified base.
+- `log10(n)`: Base-10 logarithm.
+- `sum(a, b, ...)`: Sums any number of arguments.
+- `avg(a, b, ...)`: Arithmetic mean of arguments.
 
-### Boolean
+### String Functions
 
-- Logical: `&&`, `||`, `!`, `not`
-- Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
-- Advanced: Factorials (`n!`) and Ternary operators (`cond ? true : false`).
+- `len(s)`: String length.
+- `left(s, n)`: First `n` characters.
+- `right(s, n)`: Last `n` characters.
+- `substring(s, start, length \\ nil)`: Substring by position and optional length.
+- `upper(s)`: Converts to uppercase.
+- `lower(s)`: Converts to lowercase.
+- `trim(s)`: Removes leading and trailing whitespace.
+- `concat(a, b, ...)`: Concatenates any number of arguments into a string.
+- `textjoin(delimiter, a, b, ...)`: Joins values with a delimiter.
+- `replace(s, old, new)`: Replaces all occurrences of `old` with `new`.
+- `find(search, text)`: Returns the 0-based position of `search` in `text`, or -1 if not found.
+- `contains(s, term)`: Returns `true` if `term` exists within `s`.
+- `normalize(s)`: Downcases and replaces spaces with underscores (e.g., `"Foo Bar"` -> `"foo_bar"`).
 
-### Utility & String
+### Utility Functions
 
 - `if(cond, true_val, false_val)`: Functional if-statement.
-- `ifnull(val, default)`: Returns `default` if `val` is `nil`, otherwise returns `val`.
-- `concat(a, b, ...)`: Concatenates any number of arguments into a single string.
+- `ifnull(val, default)`: Returns `default` if `val` is `nil`.
+- `coalesce(a, b, ...)`: Returns the first non-nil value.
+- `switch(expr, case1, val1, ..., default)`: Multi-way value matching.
+- `and(a, b, ...)`: Returns `true` if all arguments are truthy.
+- `or(a, b, ...)`: Returns `true` if any argument is truthy.
 - `lookup(collection, key, default \\ nil)`:
   - For maps: Looks up `key` in the map.
   - For lists: Returns the element at the integer `key` (index).
-  - Returns `default` if the value is not found or is `nil`.
-- `normalize(string)`: Downcases the string and replaces all spaces with underscores (e.g., `"Foo Bar"` -> `"foo_bar"`).
-- `substring(string, start, length \\ nil)`: Returns a subset of the string.
-- `contains(string, search_term)`: Returns `true` if `search_term` exists within `string`.
+  - Returns `default` if the value is not found.
 
 ## Error Handling
 
