@@ -403,28 +403,32 @@ defmodule ExCellerate.Parser do
   # results are flattened across levels.
   # A computed accessor .(expr) produces a :computed_spread node.
   defp build_spread_chain(target, accessors, flat? \\ false) do
-    case accessors do
-      [{:computed, expr} | rest] ->
-        # Computed spread: evaluate expr per element
-        spread = {:computed_spread, target, expr}
-        spread = if flat?, do: {:flat_computed_spread, target, expr}, else: spread
-
-        case rest do
-          [] -> spread
-          _ -> build_access_chain(spread, rest)
-        end
-
-      _ ->
-        {path, remaining} = collect_spread_path(accessors, [])
-        spread = if flat?, do: {:flat_spread, target, path}, else: {:spread, target, path}
-
-        case remaining do
-          [] -> spread
-          [{:spread} | rest] -> build_spread_chain(spread, rest, true)
-          _ -> build_access_chain(spread, remaining)
-        end
-    end
+    {spread, remaining} = build_spread_node(target, accessors, flat?)
+    continue_after_spread(spread, remaining)
   end
+
+  # Computed spread: .(expr) — evaluates an expression per element
+  defp build_spread_node(target, [{:computed, expr} | rest], flat?) do
+    node =
+      if flat?, do: {:flat_computed_spread, target, expr}, else: {:computed_spread, target, expr}
+
+    {node, rest}
+  end
+
+  # Path spread: .field.subfield — maps a dotted path over each element
+  defp build_spread_node(target, accessors, flat?) do
+    {path, remaining} = collect_spread_path(accessors, [])
+    node = if flat?, do: {:flat_spread, target, path}, else: {:spread, target, path}
+    {node, remaining}
+  end
+
+  # After building a spread node, decide how to continue the chain
+  defp continue_after_spread(spread, []), do: spread
+
+  defp continue_after_spread(spread, [{:spread} | rest]),
+    do: build_spread_chain(spread, rest, true)
+
+  defp continue_after_spread(spread, remaining), do: build_access_chain(spread, remaining)
 
   defp collect_spread_path([], acc), do: {Enum.reverse(acc), []}
   defp collect_spread_path([{:spread} | rest], acc), do: {Enum.reverse(acc), [{:spread} | rest]}
