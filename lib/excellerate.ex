@@ -245,7 +245,24 @@ defmodule ExCellerate do
   end
 
   @doc """
-  Validates that an expression is syntactically correct and all referenced functions exist.
+  Validates that an expression is syntactically correct and all referenced
+  functions exist in the registry or defaults.
+
+  Returns `:ok` if the expression is valid, or `{:error, %ExCellerate.Error{}}`
+  if it contains syntax errors or references unknown functions.
+
+  ## Examples
+
+      iex> ExCellerate.validate("1 + 2")
+      :ok
+
+      iex> ExCellerate.validate("abs(-1)")
+      :ok
+
+      iex> {:error, _} = ExCellerate.validate("1 +")
+
+      iex> {:error, _} = ExCellerate.validate("unknown_func(1)")
+
   """
   @spec validate(String.t(), registry()) :: :ok | {:error, ExCellerate.Error.t()}
   def validate(expression, registry \\ nil) do

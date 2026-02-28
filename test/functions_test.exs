@@ -233,23 +233,7 @@ defmodule ExCellerate.FunctionsTest do
     end
   end
 
-  describe "custom and scope functions" do
-    test "calls custom functions from scope" do
-      scope = %{
-        "custom" => fn x -> x * 2 end
-      }
-
-      assert ExCellerate.eval!("custom(21)", scope) == 42
-    end
-
-    test "allows overriding default functions" do
-      scope = %{
-        "abs" => fn _ -> 42 end
-      }
-
-      assert ExCellerate.eval!("abs(-10)", scope) == 42
-    end
-
+  describe "custom functions via registry" do
     test "supports global registration via Registry" do
       assert DoubleFuncRegistry.eval!("double(5)") == 10
       # Defaults still work
@@ -258,6 +242,15 @@ defmodule ExCellerate.FunctionsTest do
 
     test "registry allows overriding defaults globally" do
       assert OverrideRegistry.eval!("abs(-10)") == 42
+    end
+
+    test "scope functions are not supported — use a registry" do
+      scope = %{"custom" => fn x -> x * 2 end}
+
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("custom(21)", scope)
+
+      assert msg =~ "unknown function"
     end
   end
 
@@ -292,23 +285,23 @@ defmodule ExCellerate.FunctionsTest do
       assert msg =~ "double"
     end
 
-    test "validates arity for scope functions at runtime" do
-      scope = %{"add" => fn a, b -> a + b end}
-
-      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
-               ExCellerate.eval("add(1, 2, 3)", scope)
-
-      assert msg =~ "arity"
-    end
-
-    test "scope functions with correct arity succeed" do
-      scope = %{"add" => fn a, b -> a + b end}
-      assert ExCellerate.eval!("add(1, 2)", scope) == 3
-    end
-
     test "validate/2 catches arity errors without executing" do
       assert {:error, %ExCellerate.Error{type: :compiler}} =
                ExCellerate.validate("abs(1, 2)")
+    end
+
+    test "rejects unknown function names at compile time" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("invalid(1, 2)")
+
+      assert msg =~ "invalid"
+    end
+
+    test "validate rejects unknown function names" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.validate("invalid(1, 2)")
+
+      assert msg =~ "invalid"
     end
   end
 

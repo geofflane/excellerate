@@ -26,10 +26,12 @@ defmodule ExCellerate.Registry do
 
   ## Resolution Order
 
-  Functions are resolved in the following order:
-  1. Scope (if a variable in the scope is a function)
-  2. Registry plugins
-  3. Default built-in functions
+  Functions are resolved at compile time in the following order:
+  1. Registry plugins
+  2. Default built-in functions
+
+  If a function name cannot be resolved, a compiler error is raised.
+  Variables in the scope are only used for data access, not function calls.
   """
 
   @doc false

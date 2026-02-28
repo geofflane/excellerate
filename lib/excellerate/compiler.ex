@@ -16,32 +16,17 @@ defmodule ExCellerate.Compiler do
 
   # Dispatches a function call at runtime. Called from generated AST to
   # keep the quoted expression simple and reduce cyclomatic complexity.
+  # Only module-based functions (registered via Registry or defaults) are
+  # supported. Scope functions are not allowed — use a custom Registry instead.
   @doc false
-  def dispatch_call(func, args) do
-    case func do
-      f when is_function(f) ->
-        validate_function_arity!(f, args)
-        apply(f, args)
-
-      module when is_atom(module) and module != nil ->
-        invoke_module(module, args)
-
-      _ ->
-        raise ExCellerate.Error,
-          message: "not a function: #{inspect(func)}",
-          type: :runtime
-    end
+  def dispatch_call(module, args) when is_atom(module) and module != nil do
+    invoke_module(module, args)
   end
 
-  defp validate_function_arity!(func, args) do
-    {:arity, expected} = :erlang.fun_info(func, :arity)
-    actual = length(args)
-
-    unless expected == actual do
-      raise ExCellerate.Error,
-        message: "wrong arity: function expects #{expected} argument(s), got #{actual}",
-        type: :runtime
-    end
+  def dispatch_call(other, _args) do
+    raise ExCellerate.Error,
+      message: "not a function: #{inspect(other)}",
+      type: :runtime
   end
 
   defp invoke_module(module, args) do
@@ -163,39 +148,10 @@ defmodule ExCellerate.Compiler do
     end
   end
 
-  # Resolves a function name from the registry or defaults.
-  # Returns a quote block that resolves to a module or :not_found at runtime.
-  defp resolve_from_registry(name, nil) do
-    quote do
-      case ExCellerate.Functions.get_default_function(unquote(name)) do
-        nil ->
-          raise ExCellerate.Error,
-            message: "Function or variable not found: #{unquote(name)}",
-            type: :runtime
-
-        module ->
-          module
-      end
-    end
-  end
-
-  defp resolve_from_registry(name, registry) do
-    quote do
-      case unquote(registry).resolve_function(unquote(name)) do
-        {:ok, module} ->
-          module
-
-        :error ->
-          raise ExCellerate.Error,
-            message: "Function or variable not found: #{unquote(name)}",
-            type: :runtime
-      end
-    end
-  end
-
   # Transform our custom IR to Elixir AST
-  # Handles variable lookups and function resolution from scope/registry.
-  defp to_elixir_ast({:get_var, name}, registry) do
+  # Handles variable lookups from scope only. Functions are resolved at
+  # compile time in the :call handler, not here.
+  defp to_elixir_ast({:get_var, name}, _registry) do
     scope_var = @scope_var
 
     quote do
@@ -204,8 +160,9 @@ defmodule ExCellerate.Compiler do
           val
 
         :error ->
-          # Check registry if provided
-          unquote(resolve_from_registry(name, registry))
+          raise ExCellerate.Error,
+            message: "variable not found: #{unquote(name)}",
+            type: :runtime
       end
     end
   end
@@ -356,52 +313,46 @@ defmodule ExCellerate.Compiler do
   def spread_access(_, _), do: nil
 
   defp to_elixir_ast({:call, target, args}, registry) do
-    # For :call, we want to try resolving the target as a function/module
-    # BUT we need to handle the case where it's a raw variable name that
-    # might be in the registry but not the scope.
+    # Function calls are resolved strictly at compile time.
+    # The function must exist in the registry or defaults — scope functions
+    # are not supported. Use a custom Registry to add functions.
 
-    # args must be a list of AST nodes
     args_list = List.wrap(args)
 
-    # Compile-time arity check: if target is a named function and we can
-    # resolve it to a module, validate arity now (before generating AST).
-    case target do
-      {:get_var, name} ->
-        case resolve_module_at_compile_time(name, registry) do
-          nil -> :ok
-          module -> validate_arity!(name, module, length(args_list))
-        end
-
-      _ ->
-        :ok
-    end
-
-    scope_var = @scope_var
-
-    target_ast =
+    # Resolve function module at compile time and validate arity.
+    module =
       case target do
         {:get_var, name} ->
-          quote do
-            case Map.fetch(unquote(scope_var), unquote(name)) do
-              {:ok, val} when is_function(val) -> val
-              _ -> unquote(resolve_from_registry(name, registry))
-            end
+          case resolve_module_at_compile_time(name, registry) do
+            nil ->
+              raise ExCellerate.Error,
+                message: "unknown function: #{name}",
+                type: :compiler
+
+            module ->
+              validate_arity!(name, module, length(args_list))
+              module
           end
 
         _ ->
-          to_elixir_ast(target, registry)
+          nil
       end
 
     # Recursively transform each argument into Elixir AST
     args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
-    func_var = Macro.unique_var(:func, __MODULE__)
     args_var = Macro.unique_var(:actual_args, __MODULE__)
 
-    quote do
-      unquote(func_var) = unquote(target_ast)
-      unquote(args_var) = [unquote_splicing(args_ast)]
+    target_ast =
+      if module do
+        # Resolved at compile time — embed the module directly.
+        module
+      else
+        to_elixir_ast(target, registry)
+      end
 
-      ExCellerate.Compiler.dispatch_call(unquote(func_var), unquote(args_var))
+    quote do
+      unquote(args_var) = [unquote_splicing(args_ast)]
+      ExCellerate.Compiler.dispatch_call(unquote(target_ast), unquote(args_var))
     end
   end
 

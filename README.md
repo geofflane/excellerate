@@ -414,7 +414,7 @@ MyApp.Registry.eval!("max(10, 20)")
 ### Cons
 
 - **First-run Overhead**: The very first time an expression is encountered, it must be parsed and compiled. Subsequent calls use the cache.
-- **Static Resolution**: Custom functions are resolved at compile-time (in registries) or lookup-time, which might be slightly slower than hardcoded Elixir calls.
+- **Static Resolution**: All function names must be registered at compile time. Functions cannot be passed dynamically in the scope — use a custom `ExCellerate.Registry` instead.
 
 ## Security
 
@@ -422,7 +422,7 @@ ExCellerate uses `Code.eval_quoted/3` internally to compile expressions into reu
 
 1. **Parsing**: The NimbleParsec parser only accepts a fixed grammar. Arbitrary Elixir code (e.g., `System.cmd/2`, `File.rm/1`) cannot be expressed in the parser's syntax and will be rejected as parse errors.
 
-2. **Compilation**: The compiler only generates AST for a restricted set of operations: arithmetic, comparisons, logical/bitwise operators, data access (`Map.fetch`, `Access.get`, `Enum.at`), and function calls dispatched through the registry system. No arbitrary module calls, process operations, or I/O are emitted.
+2. **Compilation**: The compiler only generates AST for a restricted set of operations: arithmetic, comparisons, logical/bitwise operators, data access (`Map.fetch`, `Access.get`, `Enum.at`), and function calls dispatched through the registry system. All function names must resolve at compile time to a registered module — scope values cannot be invoked as functions. No arbitrary module calls, process operations, or I/O are emitted.
 
 The parser is the security boundary. Users cannot inject arbitrary Elixir through an expression string because the parser will not produce IR for it, and the compiler will not generate AST for it.
 

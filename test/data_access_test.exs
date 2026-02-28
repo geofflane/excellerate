@@ -21,7 +21,7 @@ defmodule ExCellerate.DataAccessTest do
     test "returns error for missing variables" do
       case ExCellerate.eval("unknown", %{}) do
         {:error, %ExCellerate.Error{message: msg}} ->
-          assert msg =~ "Function or variable not found: unknown"
+          assert msg =~ "variable not found: unknown"
 
         other ->
           flunk("Expected ExCellerate.Error, got #{inspect(other)}")
@@ -81,12 +81,13 @@ defmodule ExCellerate.DataAccessTest do
       assert ExCellerate.eval!("x", scope) == 1
     end
 
-    test "non-function scope variable called as function returns error" do
-      scope = %{"notfunc" => 42}
-      assert {:error, _} = ExCellerate.eval("notfunc(1)", scope)
+    test "unknown name called as function returns compile error" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.eval("notfunc(1)")
     end
 
-    test "scope variable shadows builtin when not called as function" do
+    test "scope variable with same name as builtin used as variable" do
+      # When used as a variable (not a call), scope value takes precedence
       scope = %{"abs" => 42}
       assert ExCellerate.eval!("abs", scope) == 42
     end
