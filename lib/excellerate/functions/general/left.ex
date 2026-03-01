@@ -8,11 +8,17 @@ defmodule ExCellerate.Functions.General.Left do
   @impl true
   def name, do: "left"
   @impl true
-  def arity, do: 2
+  def arity, do: 1..2
 
   @impl true
+  def call([str]) when is_binary(str), do: String.slice(str, 0, 1)
+
   def call([str, n]) when is_binary(str) and is_integer(n) do
     String.slice(str, 0, n)
+  end
+
+  def call([str]) do
+    ensure_string!(str, name())
   end
 
   def call([str, n]) do

@@ -22,7 +22,7 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 ### Math Functions
 
 - `abs(n)`: Absolute value.
-- `round(n)`: Rounds to the nearest integer.
+- `round(n)` / `round(n, digits)`: Rounds to the nearest integer, or to `digits` decimal places. Negative digits round left of the decimal.
 - `floor(n)`: Largest integer less than or equal to `n`.
 - `ceil(n)`: Smallest integer greater than or equal to `n`.
 - `trunc(n)`: Truncates toward zero (unlike `floor` for negatives).
@@ -40,8 +40,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 ### String Functions
 
 - `len(s)` / `len(list)`: String length or list length.
-- `left(s, n)`: First `n` characters.
-- `right(s, n)`: Last `n` characters.
+- `left(s)` / `left(s, n)`: First character (default), or first `n` characters.
+- `right(s)` / `right(s, n)`: Last character (default), or last `n` characters.
 - `substring(s, start, length \\ nil)`: Substring by position and optional length.
 - `upper(s)`: Converts to uppercase.
 - `lower(s)`: Converts to lowercase.
@@ -49,13 +49,13 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `concat(a, b, ...)`: Concatenates any number of arguments into a string.
 - `textjoin(delimiter, a, b, ...)`: Joins values with a delimiter.
 - `replace(s, old, new)`: Replaces all occurrences of `old` with `new`.
-- `find(search, text)`: Returns the 0-based position of `search` in `text`, or -1 if not found.
+- `find(search, text)` / `find(search, text, start)`: Returns the 0-based position of `search` in `text` (optionally starting from `start`), or -1 if not found.
 - `contains(s, term)`: Returns `true` if `term` exists within `s`.
 - `normalize(s)`: Downcases and replaces spaces with underscores (e.g., `"Foo Bar"` -> `"foo_bar"`).
 
 ### Utility Functions
 
-- `if(cond, true_val, false_val)`: Functional if-statement.
+- `if(cond, true_val)` / `if(cond, true_val, false_val)`: Functional if-statement. The 2-arg form returns `nil` when falsy.
 - `ifnull(val, default)`: Returns `default` if `val` is `nil`.
 - `coalesce(a, b, ...)`: Returns the first non-nil value.
 - `switch(expr, case1, val1, ..., default)`: Multi-way value matching.

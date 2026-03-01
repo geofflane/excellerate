@@ -21,7 +21,7 @@ defmodule ExCellerate do
   | Function | Description |
   |----------|-------------|
   | `abs(n)` | Absolute value |
-  | `round(n)` | Rounds to the nearest integer |
+  | `round(n)` or `round(n, digits)` | Rounds to nearest integer, or to `digits` decimal places |
   | `floor(n)` | Largest integer ≤ `n` |
   | `ceil(n)` | Smallest integer ≥ `n` |
   | `trunc(n)` | Truncates toward zero (unlike `floor` for negatives) |
@@ -41,8 +41,8 @@ defmodule ExCellerate do
   | Function | Description |
   |----------|-------------|
   | `len(s)` or `len(list)` | String length or list length |
-  | `left(s, n)` | First `n` characters |
-  | `right(s, n)` | Last `n` characters |
+  | `left(s)` or `left(s, n)` | First character, or first `n` characters |
+  | `right(s)` or `right(s, n)` | Last character, or last `n` characters |
   | `substring(s, start)` | Substring from `start` to end |
   | `substring(s, start, len)` | Substring of `len` characters |
   | `upper(s)` | Converts to uppercase |
@@ -51,7 +51,7 @@ defmodule ExCellerate do
   | `concat(a, b, ...)` | Concatenates values into a string |
   | `textjoin(delim, a, b, ...)` | Joins values with a delimiter |
   | `replace(s, old, new)` | Replaces all occurrences of `old` with `new` |
-  | `find(search, text)` | 0-based position of `search` in `text`, or -1 |
+  | `find(search, text)` or `find(search, text, start)` | 0-based position of `search` in `text`, optionally from `start` |
   | `contains(s, term)` | Returns `true` if `term` exists within `s` |
   | `normalize(s)` | Downcases and replaces spaces with underscores |
 
@@ -59,7 +59,7 @@ defmodule ExCellerate do
 
   | Function | Description |
   |----------|-------------|
-  | `if(cond, t, f)` | Returns `t` if `cond` is truthy, otherwise `f` |
+  | `if(cond, t)` or `if(cond, t, f)` | Returns `t` if truthy; `f` (or `nil`) otherwise |
   | `ifnull(val, default)` | Returns `default` if `val` is nil |
   | `coalesce(a, b, ...)` | Returns the first non-nil value |
   | `switch(expr, c1, v1, ..., default)` | Multi-way value matching |

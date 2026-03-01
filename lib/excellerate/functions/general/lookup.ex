@@ -5,7 +5,7 @@ defmodule ExCellerate.Functions.General.Lookup do
   @impl true
   def name, do: "lookup"
   @impl true
-  def arity, do: :any
+  def arity, do: 2..3
 
   @impl true
   def call([map, key]) when is_map(map) do

@@ -8,9 +8,14 @@ defmodule ExCellerate.Functions.General.Right do
   @impl true
   def name, do: "right"
   @impl true
-  def arity, do: 2
+  def arity, do: 1..2
 
   @impl true
+  def call([str]) when is_binary(str) do
+    len = String.length(str)
+    if len == 0, do: "", else: String.slice(str, len - 1, 1)
+  end
+
   def call([str, n]) when is_binary(str) and is_integer(n) do
     len = String.length(str)
 
@@ -19,6 +24,10 @@ defmodule ExCellerate.Functions.General.Right do
     else
       String.slice(str, len - n, n)
     end
+  end
+
+  def call([str]) do
+    ensure_string!(str, name())
   end
 
   def call([str, n]) do

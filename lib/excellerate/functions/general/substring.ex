@@ -5,7 +5,7 @@ defmodule ExCellerate.Functions.General.Substring do
   @impl true
   def name, do: "substring"
   @impl true
-  def arity, do: :any
+  def arity, do: 2..3
 
   @impl true
   def call([str, start]) when is_binary(str) and is_integer(start) do

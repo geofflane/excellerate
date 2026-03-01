@@ -12,6 +12,19 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("floor(1.9)") == 1
     end
 
+    test "round with digits argument" do
+      assert ExCellerate.eval!("round(3.14159, 2)") == 3.14
+      assert ExCellerate.eval!("round(3.14159, 0)") == 3.0
+      assert ExCellerate.eval!("round(3.14159, 4)") == 3.1416
+      assert ExCellerate.eval!("round(42, 2)") == 42.0
+      assert ExCellerate.eval!("round(2.5, 0)") == 3.0
+    end
+
+    test "round with negative digits truncates left of decimal" do
+      assert ExCellerate.eval!("round(1234, -2)") == 1200.0
+      assert ExCellerate.eval!("round(1250, -2)") == 1300.0
+    end
+
     test "min is variadic" do
       assert ExCellerate.eval!("min(5)") == 5
       assert ExCellerate.eval!("min(3, 1, 2)") == 1
@@ -103,10 +116,22 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("left('Hello', 0)") == ""
     end
 
+    test "left with no count defaults to 1 character" do
+      assert ExCellerate.eval!("left('Hello')") == "H"
+      assert ExCellerate.eval!("left('A')") == "A"
+      assert ExCellerate.eval!("left('')") == ""
+    end
+
     test "calls right builtin" do
       assert ExCellerate.eval!("right('Hello World', 5)") == "World"
       assert ExCellerate.eval!("right('Hi', 10)") == "Hi"
       assert ExCellerate.eval!("right('Hello', 0)") == ""
+    end
+
+    test "right with no count defaults to 1 character" do
+      assert ExCellerate.eval!("right('Hello')") == "o"
+      assert ExCellerate.eval!("right('A')") == "A"
+      assert ExCellerate.eval!("right('')") == ""
     end
 
     test "calls upper builtin" do
@@ -139,6 +164,12 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("find('hel', 'hello')") == 0
     end
 
+    test "find with start_pos argument" do
+      assert ExCellerate.eval!("find('o', 'hello world', 5)") == 7
+      assert ExCellerate.eval!("find('l', 'hello world', 4)") == 9
+      assert ExCellerate.eval!("find('xyz', 'hello', 0)") == -1
+    end
+
     test "calls concat builtin" do
       assert ExCellerate.eval!("concat('foo', 'bar')") == "foobar"
       assert ExCellerate.eval!("concat('a', 1, true)") == "a1true"
@@ -163,6 +194,19 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("substring(123, 0)", %{}) == nil
     end
 
+    test "substring rejects wrong number of args" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("substring('hello')")
+
+      assert msg =~ "substring"
+      assert msg =~ "2..3"
+
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("substring('hello', 0, 5, 'extra')")
+
+      assert msg =~ "substring"
+    end
+
     test "calls normalize builtin" do
       assert ExCellerate.eval!("normalize('Hello World')") == "hello_world"
     end
@@ -184,6 +228,12 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("if(false, 1, 0)") == 0
     end
 
+    test "if with two args defaults else to nil" do
+      assert ExCellerate.eval!("if(true, 'yes')") == "yes"
+      assert ExCellerate.eval!("if(false, 'yes')") == nil
+      assert ExCellerate.eval!("if(null, 42)") == nil
+    end
+
     test "calls lookup builtin" do
       assert ExCellerate.eval!("lookup(map, 'key')", %{"map" => %{"key" => "val"}}) == "val"
       assert ExCellerate.eval!("lookup(list, 1)", %{"list" => ["a", "b", "c"]}) == "b"
@@ -201,6 +251,21 @@ defmodule ExCellerate.FunctionsTest do
 
     test "lookup with non-map/list and no default returns nil" do
       assert ExCellerate.eval!("lookup(val, 'k')", %{"val" => 42}) == nil
+    end
+
+    test "lookup rejects wrong number of args" do
+      scope = %{"m" => %{"k" => 1}}
+
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("lookup(m)", scope)
+
+      assert msg =~ "lookup"
+      assert msg =~ "2..3"
+
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("lookup(m, 'k', 'd', 'extra')", scope)
+
+      assert msg =~ "lookup"
     end
 
     test "calls coalesce builtin" do
@@ -284,16 +349,36 @@ defmodule ExCellerate.FunctionsTest do
 
     test "rejects too few args for fixed-arity function" do
       assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
-               ExCellerate.eval("left('hello')")
+               ExCellerate.eval("replace('hello', 'h')")
 
-      assert msg =~ "left"
+      assert msg =~ "replace"
+      assert msg =~ "3"
       assert msg =~ "2"
-      assert msg =~ "1"
     end
 
     test "allows variadic functions with any number of args" do
       assert ExCellerate.eval!("concat('a')") == "a"
       assert ExCellerate.eval!("concat('a', 'b', 'c')") == "abc"
+    end
+
+    test "accepts args within range arity bounds" do
+      # round has arity 1..2 — both 1 and 2 args should compile
+      assert ExCellerate.eval!("round(1.5)") == 2
+      assert ExCellerate.eval!("round(1.5, 1)") == 1.5
+    end
+
+    test "rejects too many args for range-arity function" do
+      assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+               ExCellerate.eval("round(1, 2, 3)")
+
+      assert msg =~ "round"
+      assert msg =~ "1..2"
+      assert msg =~ "3"
+    end
+
+    test "validate catches range arity errors" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.validate("round(1, 2, 3)")
     end
 
     test "validates arity through a registry" do

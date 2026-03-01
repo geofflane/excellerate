@@ -18,6 +18,14 @@ defmodule ExCellerate.Function do
         end
       end
 
+  ## Arity
+
+  The `arity/0` callback controls compile-time argument count validation:
+
+  - **Fixed**: `def arity, do: 2` — requires exactly 2 arguments.
+  - **Range**: `def arity, do: 1..2` — accepts 1 or 2 arguments (optional args).
+  - **Variadic**: `def arity, do: :any` — accepts any number of arguments.
+
   ## Argument Validation
 
   Use `ExCellerate.Functions.Guards` for consistent runtime type checking
@@ -41,8 +49,8 @@ defmodule ExCellerate.Function do
   @doc "Returns the name of the function as it will be called in expressions."
   @callback name() :: String.t()
 
-  @doc "Returns the expected number of arguments, or :any."
-  @callback arity() :: integer() | :any
+  @doc "Returns the expected number of arguments, a range for optional args, or :any."
+  @callback arity() :: integer() | Range.t() | :any
 
   @doc "Executes the function logic with the provided list of arguments."
   @callback call(list(any())) :: any()

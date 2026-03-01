@@ -64,13 +64,14 @@ defmodule ExCellerate.Compiler do
     expected = module.arity()
     actual = length(args)
 
-    if expected == :any or expected == actual do
+    if arity_matches?(expected, actual) do
       :ok
     else
       name = if function_exported?(module, :name, 0), do: module.name(), else: inspect(module)
 
       raise ExCellerate.Error,
-        message: "wrong number of arguments for '#{name}': expected #{expected}, got #{actual}",
+        message:
+          "wrong number of arguments for '#{name}': expected #{format_arity(expected)}, got #{actual}",
         type: :runtime
     end
   end
@@ -172,16 +173,24 @@ defmodule ExCellerate.Compiler do
   # Validates that the number of arguments matches the function's declared arity.
   # Raises ExCellerate.Error with type :compiler on mismatch.
   # Skips check for :any arity (variadic functions).
+  # Supports Range arity for optional arguments (e.g. 1..2).
   defp validate_arity!(name, module, arg_count) do
     expected = module.arity()
 
-    unless expected == :any or expected == arg_count do
+    unless arity_matches?(expected, arg_count) do
       raise ExCellerate.Error,
         message:
-          "wrong number of arguments for '#{name}': expected #{expected}, got #{arg_count}",
+          "wrong number of arguments for '#{name}': expected #{format_arity(expected)}, got #{arg_count}",
         type: :compiler
     end
   end
+
+  defp arity_matches?(:any, _arg_count), do: true
+  defp arity_matches?(n, arg_count) when is_integer(n), do: n == arg_count
+  defp arity_matches?(first..last//1, arg_count), do: arg_count >= first and arg_count <= last
+
+  defp format_arity(first..last//1), do: "#{first}..#{last}"
+  defp format_arity(other), do: to_string(other)
 
   defp compile_named_call(name, args_list, registry) do
     module =
