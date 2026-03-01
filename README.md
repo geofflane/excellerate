@@ -1,6 +1,6 @@
 # ExCellerate
 
-ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed.
+ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
 
 ## Features
 
