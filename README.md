@@ -65,6 +65,12 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
   - For maps: Looks up `key` in the map.
   - For lists: Returns the element at the integer `key` (index).
   - Returns `default` if the value is not found.
+- `filter(list, predicates)`: Returns items where the corresponding predicate is `true`.
+- `table(key1, list1, key2, list2, ...)`: Builds a list of maps from alternating key/list pairs.
+
+### Special Forms
+
+- `let(name, value, expr)`: Lexically binds `name` to `value` within `expr` only.
 
 ## Error Handling
 
@@ -341,6 +347,70 @@ You can validate an expression's syntax and function calls without executing it:
 ```
 
 Validation checks syntax, function existence, and arity. However, ExCellerate does not perform type checking — scope values are not known until runtime, so type mismatches (e.g., passing a number to a string function like `upper(price)`) will only be caught at evaluation time with a descriptive runtime error.
+
+## Let, Filter, and Table
+
+`let/3` introduces a lexical binding that is visible only inside the body
+expression; it does not mutate the outer scope:
+
+```elixir
+scope = %{"x" => 10, "y" => 3}
+
+ExCellerate.eval!("let(x, 2, x + y)", scope)
+# => 5
+
+ExCellerate.eval!("x + y", scope)
+# => 13
+```
+
+`filter/2` selects items from a list using a boolean list produced by a
+computed spread. The predicate list must be the same length as the input list:
+
+```elixir
+scope = %{
+  "orders" => [
+    %{"id" => 1, "qty" => 2},
+    %{"id" => 2, "qty" => 1},
+    %{"id" => 3, "qty" => 5}
+  ]
+}
+
+ExCellerate.eval!("filter(orders, orders[*].(qty > 1))", scope)
+# => [%{"id" => 1, "qty" => 2}, %{"id" => 3, "qty" => 5}]
+```
+
+`table` builds a list of maps from alternating key/list pairs. Use spread or
+computed spread to produce the list columns:
+
+```elixir
+scope = %{
+  "orders" => [
+    %{"product" => "Widget", "price" => 10, "qty" => 2},
+    %{"product" => "Gadget", "price" => 5, "qty" => 1}
+  ]
+}
+
+ExCellerate.eval!("table('product', orders[*].product, 'total', orders[*].(qty * price))", scope)
+# => [%{"product" => "Widget", "total" => 20}, %{"product" => "Gadget", "total" => 5}]
+```
+
+### Putting It Together
+
+These features compose naturally. Filter to large orders, then build a summary:
+
+```elixir
+scope = %{
+  "orders" => [
+    %{"product" => "Widget", "price" => 10, "qty" => 5},
+    %{"product" => "Gadget", "price" => 3, "qty" => 1},
+    %{"product" => "Gizmo", "price" => 8, "qty" => 3}
+  ]
+}
+
+expr = "let(big, filter(orders, orders[*].(qty > 1)), table('product', big[*].product, 'total', big[*].(qty * price)))"
+ExCellerate.eval!(expr, scope)
+# => [%{"product" => "Widget", "total" => 50}, %{"product" => "Gizmo", "total" => 24}]
+```
 
 ## Pre-compilation
 

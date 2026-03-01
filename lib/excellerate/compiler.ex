@@ -110,6 +110,22 @@ defmodule ExCellerate.Compiler do
     end
   end
 
+  # Called from generated AST to build the scope for each computed spread item.
+  # Merges the item into the current scope so that outer variables (including
+  # let bindings) remain accessible. Item keys shadow outer keys of the same name.
+  # When the item is not a map (e.g., a list of scalars), the outer scope is
+  # returned unchanged.
+  @doc false
+  def merge_item_scope(scope, item) when is_map(scope) and is_map(item) do
+    Map.merge(scope, item)
+  end
+
+  def merge_item_scope(scope, _item) when is_map(scope), do: scope
+
+  def merge_item_scope(_scope, item) when is_map(item), do: item
+
+  def merge_item_scope(_scope, _item), do: %{}
+
   # Compiles the IR into Elixir AST.
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
@@ -144,6 +160,67 @@ defmodule ExCellerate.Compiler do
         message:
           "wrong number of arguments for '#{name}': expected #{expected}, got #{arg_count}",
         type: :compiler
+    end
+  end
+
+  defp compile_named_call(name, args_list, registry) do
+    module =
+      case resolve_module_at_compile_time(name, registry) do
+        nil ->
+          raise ExCellerate.Error,
+            message: "unknown function: #{name}",
+            type: :compiler
+
+        module ->
+          validate_arity!(name, module, length(args_list))
+          module
+      end
+
+    args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
+    args_var = Macro.unique_var(:actual_args, __MODULE__)
+
+    quote do
+      unquote(args_var) = [unquote_splicing(args_ast)]
+      ExCellerate.Compiler.dispatch_call(unquote(module), unquote(args_var))
+    end
+  end
+
+  defp compile_let([{:get_var, var_name}, value_ast, body_ast], registry) do
+    compile_let_body(var_name, value_ast, body_ast, registry)
+  end
+
+  defp compile_let([name, value_ast, body_ast], registry) when is_binary(name) do
+    compile_let_body(name, value_ast, body_ast, registry)
+  end
+
+  defp compile_let([_, _, _], _registry) do
+    raise ExCellerate.Error,
+      message: "let/3 expects a variable name as the first argument",
+      type: :compiler
+  end
+
+  defp compile_let(_args, _registry) do
+    raise ExCellerate.Error,
+      message: "let/3 expects exactly 3 arguments",
+      type: :compiler
+  end
+
+  defp compile_let_body(name, value_ast, body_ast, registry) do
+    value_elixir = to_elixir_ast(value_ast, registry)
+    body_elixir = to_elixir_ast(body_ast, registry)
+    scope_var = @scope_var
+    current_scope_var = Macro.unique_var(:scope, __MODULE__)
+    result_var = Macro.unique_var(:let_result, __MODULE__)
+
+    quote do
+      unquote(current_scope_var) = unquote(scope_var)
+
+      unquote(scope_var) =
+        Map.put(unquote(current_scope_var), unquote(name), unquote(value_elixir))
+
+      unquote(result_var) = unquote(body_elixir)
+      unquote(scope_var) = unquote(current_scope_var)
+      unquote(result_var)
     end
   end
 
@@ -212,9 +289,9 @@ defmodule ExCellerate.Compiler do
     item_var = Macro.unique_var(:spread_item, __MODULE__)
 
     # Compile the inner expression. It references variables via :get_var,
-    # which normally looks them up in @scope_var. We need each element to
-    # be the scope for the inner expression, so we bind @scope_var to the
-    # current item inside the mapping function.
+    # which normally looks them up in @scope_var. We merge each element
+    # into the current scope so that outer variables (including let bindings)
+    # remain accessible, while the item's keys take precedence.
     scope_var = @scope_var
     inner_ast = to_elixir_ast(expr, registry)
 
@@ -230,7 +307,9 @@ defmodule ExCellerate.Compiler do
       ExCellerate.Compiler.unquote(spread_fn)(
         unquote(list_var),
         fn unquote(item_var) ->
-          unquote(scope_var) = unquote(item_var)
+          unquote(scope_var) =
+            ExCellerate.Compiler.merge_item_scope(unquote(scope_var), unquote(item_var))
+
           unquote(inner_ast)
         end
       )
@@ -350,40 +429,23 @@ defmodule ExCellerate.Compiler do
 
     args_list = List.wrap(args)
 
-    # Resolve function module at compile time and validate arity.
-    module =
-      case target do
-        {:get_var, name} ->
-          case resolve_module_at_compile_time(name, registry) do
-            nil ->
-              raise ExCellerate.Error,
-                message: "unknown function: #{name}",
-                type: :compiler
+    case target do
+      {:get_var, "let"} ->
+        compile_let(args_list, registry)
 
-            module ->
-              validate_arity!(name, module, length(args_list))
-              module
-          end
+      {:get_var, name} ->
+        compile_named_call(name, args_list, registry)
 
-        _ ->
-          nil
-      end
+      _ ->
+        # Dynamic function call target (non-name) - evaluate normally
+        args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
+        args_var = Macro.unique_var(:actual_args, __MODULE__)
+        target_ast = to_elixir_ast(target, registry)
 
-    # Recursively transform each argument into Elixir AST
-    args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
-    args_var = Macro.unique_var(:actual_args, __MODULE__)
-
-    target_ast =
-      if module do
-        # Resolved at compile time — embed the module directly.
-        module
-      else
-        to_elixir_ast(target, registry)
-      end
-
-    quote do
-      unquote(args_var) = [unquote_splicing(args_ast)]
-      ExCellerate.Compiler.dispatch_call(unquote(target_ast), unquote(args_var))
+        quote do
+          unquote(args_var) = [unquote_splicing(args_ast)]
+          ExCellerate.Compiler.dispatch_call(unquote(target_ast), unquote(args_var))
+        end
     end
   end
 

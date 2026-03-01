@@ -30,6 +30,8 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Replace,
     ExCellerate.Functions.General.Right,
     ExCellerate.Functions.General.Substring,
+    ExCellerate.Functions.General.Filter,
+    ExCellerate.Functions.General.Table,
     ExCellerate.Functions.General.TextJoin,
     ExCellerate.Functions.General.Trim,
     ExCellerate.Functions.General.Upper,

@@ -67,6 +67,14 @@ defmodule ExCellerate do
   | `or(a, b, ...)` | Returns `true` if any argument is truthy |
   | `lookup(coll, key)` | Looks up `key` in a map or index in a list |
   | `lookup(coll, key, default)` | Same, with a default for missing keys |
+  | `filter(list, predicates)` | Returns items where predicate is `true` |
+  | `table(key1, list1, ...)` | Builds a list of maps from key/list pairs |
+
+  ### Special Forms
+
+  | Form | Description |
+  |------|-------------|
+  | `let(name, value, expr)` | Lexically binds `name` within `expr` only |
 
   Custom functions can be added via the `ExCellerate.Registry` system.
 
@@ -131,6 +139,30 @@ defmodule ExCellerate do
   Computed spreads also compose with nested `[*]`:
 
       # departments[*].employees[*].(salary * 12)  => annualised salaries, flattened
+
+  ## Let, Filter, and Table
+
+  `let/3` introduces a lexical binding that is visible only inside the body
+  expression; it does not mutate the outer scope:
+
+      # Given scope = %{"orders" => [%{"price" => 10, "qty" => 2}, ...]}
+      let(total, sum(orders[*].price), total + 5)
+
+  `filter/2` selects items from a list using a boolean list produced by a
+  computed spread. The predicate list must be the same length as the input list:
+
+      filter(orders, orders[*].(qty > 1))
+
+  `table` builds a list of maps from alternating key/list pairs. Use spread
+  or computed spread to produce the list columns:
+
+      table('product', orders[*].product, 'total', orders[*].(qty * price))
+      # => [%{"product" => "Widget", "total" => 20}, ...]
+
+  These compose naturally — filter first, then build a summary table:
+
+      let(big, filter(orders, orders[*].(qty > 1)),
+        table('product', big[*].product, 'total', big[*].(qty * price)))
   """
 
   alias ExCellerate.Compiler
