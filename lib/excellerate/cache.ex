@@ -154,7 +154,8 @@ defmodule ExCellerate.Cache do
   end
 
   defp enabled?(registry) do
-    if function_exported?(registry, :__excellerate_config__, 1) do
+    if Code.ensure_loaded?(registry) and
+         function_exported?(registry, :__excellerate_config__, 1) do
       registry.__excellerate_config__(:cache_enabled)
     else
       Application.get_env(:excellerate, :cache_enabled, true)
@@ -166,7 +167,8 @@ defmodule ExCellerate.Cache do
   end
 
   defp get_limit(registry) do
-    if function_exported?(registry, :__excellerate_config__, 1) do
+    if Code.ensure_loaded?(registry) and
+         function_exported?(registry, :__excellerate_config__, 1) do
       registry.__excellerate_config__(:cache_limit)
     else
       Application.get_env(:excellerate, :cache_limit, @default_limit)
