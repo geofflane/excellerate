@@ -99,6 +99,44 @@ defmodule ExCellerate.DataAccessTest do
 
   # ── Bug regression tests ──────────────────────────────────────────
 
+  describe "dot-path access with atom keys" do
+    test "nested atom-keyed map via dot notation" do
+      scope = %{"user" => %{name: "Alice"}}
+      assert ExCellerate.eval!("user.name", scope) == "Alice"
+    end
+
+    test "top-level atom key with nested atom keys" do
+      scope = %{user: %{name: "Bob"}}
+      assert ExCellerate.eval!("user.name", scope) == "Bob"
+    end
+
+    test "deeply nested atom keys" do
+      scope = %{"a" => %{b: %{c: "deep"}}}
+      assert ExCellerate.eval!("a.b.c", scope) == "deep"
+    end
+
+    test "mixed string and atom keys in nested path" do
+      scope = %{"outer" => %{"middle" => %{inner: 42}}}
+      assert ExCellerate.eval!("outer.middle.inner", scope) == 42
+    end
+
+    test "atom-keyed map in list index access" do
+      scope = %{"items" => [%{value: 10}, %{value: 20}]}
+      assert ExCellerate.eval!("items[0].value", scope) == 10
+      assert ExCellerate.eval!("items[1].value", scope) == 20
+    end
+
+    test "atom key access returns nil without error" do
+      scope = %{"user" => %{name: nil}}
+      assert ExCellerate.eval!("user.name", scope) == nil
+    end
+
+    test "string key still takes precedence over atom key in nested access" do
+      scope = %{"m" => %{"k" => "string", k: "atom"}}
+      assert ExCellerate.eval!("m.k", scope) == "string"
+    end
+  end
+
   describe "sentinel collision bug" do
     test "map value of :not_found is returned correctly" do
       scope = %{"m" => %{"k" => :not_found}}

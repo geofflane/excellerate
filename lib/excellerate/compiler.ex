@@ -93,6 +93,26 @@ defmodule ExCellerate.Compiler do
 
   def struct_get(_struct, _key, default), do: default
 
+  # Called from generated AST for dot/bracket access on plain maps.
+  # Tries the key as-is first (string), then falls back to atom key
+  # (if the atom already exists) to support atom-keyed maps.
+  @doc false
+  def map_get(map, key, default) when is_map(map) and is_binary(key) do
+    case Access.get(map, key, @not_found_sentinel) do
+      @not_found_sentinel ->
+        try do
+          Access.get(map, String.to_existing_atom(key), default)
+        rescue
+          ArgumentError -> default
+        end
+
+      val ->
+        val
+    end
+  end
+
+  def map_get(target, key, default), do: Access.get(target, key, default)
+
   # Called from generated AST to resolve scope variables.
   # Tries string key first, then atom key (if the atom already exists).
   @doc false
@@ -268,7 +288,11 @@ defmodule ExCellerate.Compiler do
           )
 
         _ ->
-          Access.get(unquote(target_var), unquote(key_var), unquote(sentinel_var))
+          ExCellerate.Compiler.map_get(
+            unquote(target_var),
+            unquote(key_var),
+            unquote(sentinel_var)
+          )
       end
       |> case do
         ^unquote(sentinel_var) ->
