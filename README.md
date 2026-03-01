@@ -97,6 +97,42 @@ end
 result = ExCellerate.eval!("1 + 2 * 3")
 ```
 
+## Multi-line Expressions
+
+Expressions can be formatted across multiple lines for readability. Newlines are treated as whitespace by the parser, so you can break long expressions into a readable structure:
+
+```elixir
+expr = """
+ifs(
+  score > 90, 'A',
+  score > 80, 'B',
+  score > 70, 'C',
+  true, 'F'
+)
+"""
+
+ExCellerate.eval!(expr, %{"score" => 85})
+# => "B"
+```
+
+This works with all APIs — `eval/3`, `compile/2`, and `validate/2`:
+
+```elixir
+expr = """
+let(
+  big,
+  filter(orders, orders[*].(qty > 1)),
+  table(
+    'product', big[*].product,
+    'total', big[*].(qty * price)
+  )
+)
+"""
+
+:ok = ExCellerate.validate(expr)
+{:ok, fun} = ExCellerate.compile(expr)
+```
+
 ## Examples
 
 ### Basic Expressions

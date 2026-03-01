@@ -79,6 +79,25 @@ defmodule ExCellerate do
 
   Custom functions can be added via the `ExCellerate.Registry` system.
 
+  ## Multi-line Expressions
+
+  Expressions can be formatted across multiple lines for readability.
+  Newlines are treated as whitespace by the parser:
+
+      expr = \"\"\"
+      ifs(
+        score > 90, 'A',
+        score > 80, 'B',
+        score > 70, 'C',
+        true, 'F'
+      )
+      \"\"\"
+
+      ExCellerate.eval!(expr, %{"score" => 85})
+      # => "B"
+
+  This works with `validate/2` and `compile/2` as well.
+
   ## Examples
 
       iex> ExCellerate.eval!("1 + 2 * 3")
