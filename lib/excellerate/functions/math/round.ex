@@ -14,19 +14,15 @@ defmodule ExCellerate.Functions.Math.Round do
   def arity, do: 1..2
 
   @impl true
-  def call([n]) when is_number(n), do: round(n)
-
-  def call([n, digits]) when is_number(n) and is_integer(digits) do
-    multiplier = :math.pow(10, digits)
-    Float.round(n * multiplier) / multiplier
-  end
-
   def call([n]) do
     ensure_number!(n, name())
+    round(n)
   end
 
   def call([n, digits]) do
     ensure_number!(n, name())
     ensure_integer!(digits, name())
+    multiplier = :math.pow(10, digits)
+    Float.round(n * multiplier) / multiplier
   end
 end

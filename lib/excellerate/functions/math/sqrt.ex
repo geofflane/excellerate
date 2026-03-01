@@ -11,13 +11,15 @@ defmodule ExCellerate.Functions.Math.Sqrt do
   def arity, do: 1
 
   @impl true
-  def call([n]) when is_number(n) and n >= 0, do: :math.sqrt(n)
+  def call([n]) do
+    ensure_number!(n, name())
 
-  def call([n]) when is_number(n) do
-    raise ExCellerate.Error,
-      message: "#{name()} requires a non-negative number, got #{n}",
-      type: :runtime
+    if n < 0 do
+      raise ExCellerate.Error,
+        message: "#{name()} requires a non-negative number, got #{n}",
+        type: :runtime
+    end
+
+    :math.sqrt(n)
   end
-
-  def call([other]), do: ensure_number!(other, name())
 end

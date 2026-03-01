@@ -11,12 +11,9 @@ defmodule ExCellerate.Functions.Math.Log do
   def arity, do: 2
 
   @impl true
-  def call([value, base]) when is_number(value) and is_number(base) do
-    :math.log(value) / :math.log(base)
-  end
-
   def call([value, base]) do
     ensure_number!(value, name())
     ensure_number!(base, name())
+    :math.log(value) / :math.log(base)
   end
 end

@@ -11,6 +11,8 @@ defmodule ExCellerate.Functions.General.Trim do
   def arity, do: 1
 
   @impl true
-  def call([str]) when is_binary(str), do: String.trim(str)
-  def call([other]), do: ensure_string!(other, name())
+  def call([str]) do
+    ensure_string!(str, name())
+    String.trim(str)
+  end
 end

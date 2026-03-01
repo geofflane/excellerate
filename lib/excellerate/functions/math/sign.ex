@@ -11,8 +11,13 @@ defmodule ExCellerate.Functions.Math.Sign do
   def arity, do: 1
 
   @impl true
-  def call([n]) when is_number(n) and n > 0, do: 1
-  def call([n]) when is_number(n) and n < 0, do: -1
-  def call([n]) when is_number(n), do: 0
-  def call([other]), do: ensure_number!(other, name())
+  def call([n]) do
+    ensure_number!(n, name())
+
+    cond do
+      n > 0 -> 1
+      n < 0 -> -1
+      true -> 0
+    end
+  end
 end

@@ -11,6 +11,8 @@ defmodule ExCellerate.Functions.General.Lower do
   def arity, do: 1
 
   @impl true
-  def call([str]) when is_binary(str), do: String.downcase(str)
-  def call([other]), do: ensure_string!(other, name())
+  def call([str]) do
+    ensure_string!(str, name())
+    String.downcase(str)
+  end
 end

@@ -12,31 +12,26 @@ defmodule ExCellerate.Functions.General.Find do
   def arity, do: 2..3
 
   @impl true
-  def call([search, text]) when is_binary(search) and is_binary(text) do
+  def call([search, text]) do
+    ensure_string!(search, name())
+    ensure_string!(text, name())
+
     case :binary.match(text, search) do
       {pos, _len} -> pos
       :nomatch -> -1
     end
   end
 
-  def call([search, text, start_pos])
-      when is_binary(search) and is_binary(text) and is_integer(start_pos) do
+  def call([search, text, start_pos]) do
+    ensure_string!(search, name())
+    ensure_string!(text, name())
+    ensure_integer!(start_pos, name())
+
     sliced = String.slice(text, start_pos..-1//1)
 
     case :binary.match(sliced, search) do
       {pos, _len} -> pos + start_pos
       :nomatch -> -1
     end
-  end
-
-  def call([search, text]) do
-    ensure_string!(search, name())
-    ensure_string!(text, name())
-  end
-
-  def call([search, text, start_pos]) do
-    ensure_string!(search, name())
-    ensure_string!(text, name())
-    ensure_integer!(start_pos, name())
   end
 end

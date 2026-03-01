@@ -12,14 +12,10 @@ defmodule ExCellerate.Functions.General.Replace do
   def arity, do: 3
 
   @impl true
-  def call([str, pattern, replacement])
-      when is_binary(str) and is_binary(pattern) and is_binary(replacement) do
-    String.replace(str, pattern, replacement)
-  end
-
   def call([str, pattern, replacement]) do
     ensure_string!(str, name())
     ensure_string!(pattern, name())
     ensure_string!(replacement, name())
+    String.replace(str, pattern, replacement)
   end
 end

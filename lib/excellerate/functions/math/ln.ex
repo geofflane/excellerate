@@ -11,6 +11,8 @@ defmodule ExCellerate.Functions.Math.Ln do
   def arity, do: 1
 
   @impl true
-  def call([n]) when is_number(n), do: :math.log(n)
-  def call([other]), do: ensure_number!(other, name())
+  def call([n]) do
+    ensure_number!(n, name())
+    :math.log(n)
+  end
 end
