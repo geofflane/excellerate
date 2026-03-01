@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.General.Upper do
   # Internal: Implements the 'upper' function — converts a string to uppercase.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "upper"
   @impl true
@@ -10,10 +12,5 @@ defmodule ExCellerate.Functions.General.Upper do
 
   @impl true
   def call([str]) when is_binary(str), do: String.upcase(str)
-
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a string, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_string!(other, name())
 end

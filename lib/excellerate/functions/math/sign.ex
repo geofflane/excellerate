@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.Math.Sign do
   # Internal: Implements the 'sign' function — returns -1, 0, or 1.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "sign"
   @impl true
@@ -12,10 +14,5 @@ defmodule ExCellerate.Functions.Math.Sign do
   def call([n]) when is_number(n) and n > 0, do: 1
   def call([n]) when is_number(n) and n < 0, do: -1
   def call([n]) when is_number(n), do: 0
-
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a number, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_number!(other, name())
 end

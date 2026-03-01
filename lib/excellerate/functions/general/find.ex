@@ -4,6 +4,8 @@ defmodule ExCellerate.Functions.General.Find do
   # of the first occurrence of search in text, or -1 if not found.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "find"
   @impl true
@@ -18,8 +20,7 @@ defmodule ExCellerate.Functions.General.Find do
   end
 
   def call([search, text]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects two strings, got: #{inspect(search)}, #{inspect(text)}",
-      type: :runtime
+    ensure_string!(search, name())
+    ensure_string!(text, name())
   end
 end

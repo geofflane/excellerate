@@ -17,6 +17,25 @@ defmodule ExCellerate.Function do
           "Hello, \#{name}!"
         end
       end
+
+  ## Argument Validation
+
+  Use `ExCellerate.Functions.Guards` for consistent runtime type checking
+  in your `call/1` implementations. The guards produce descriptive
+  `ExCellerate.Error` messages and reduce boilerplate:
+
+      defmodule MyApp.Functions.Double do
+        @behaviour ExCellerate.Function
+        import ExCellerate.Functions.Guards
+
+        def name, do: "double"
+        def arity, do: 1
+
+        def call([n]) when is_number(n), do: n * 2
+        def call([other]), do: ensure_number!(other, name())
+      end
+
+  See `ExCellerate.Functions.Guards` for the full list of available helpers.
   """
 
   @doc "Returns the name of the function as it will be called in expressions."

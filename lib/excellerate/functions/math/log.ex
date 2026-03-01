@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.Math.Log do
   # Internal: Implements the 'log' function — logarithm with specified base.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "log"
   @impl true
@@ -14,8 +16,7 @@ defmodule ExCellerate.Functions.Math.Log do
   end
 
   def call([value, base]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects two numbers, got: #{inspect(value)}, #{inspect(base)}",
-      type: :runtime
+    ensure_number!(value, name())
+    ensure_number!(base, name())
   end
 end

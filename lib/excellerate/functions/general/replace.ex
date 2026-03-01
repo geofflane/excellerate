@@ -4,6 +4,8 @@ defmodule ExCellerate.Functions.General.Replace do
   # of a substring. Equivalent to Excel's SUBSTITUTE.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "replace"
   @impl true
@@ -16,9 +18,8 @@ defmodule ExCellerate.Functions.General.Replace do
   end
 
   def call([str, pattern, replacement]) do
-    raise ExCellerate.Error,
-      message:
-        "#{name()} expects three strings, got: #{inspect(str)}, #{inspect(pattern)}, #{inspect(replacement)}",
-      type: :runtime
+    ensure_string!(str, name())
+    ensure_string!(pattern, name())
+    ensure_string!(replacement, name())
   end
 end

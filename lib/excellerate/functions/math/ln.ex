@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.Math.Ln do
   # Internal: Implements the 'ln' function — natural logarithm (base e).
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "ln"
   @impl true
@@ -10,10 +12,5 @@ defmodule ExCellerate.Functions.Math.Ln do
 
   @impl true
   def call([n]) when is_number(n), do: :math.log(n)
-
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a number, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_number!(other, name())
 end

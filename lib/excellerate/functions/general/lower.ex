@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.General.Lower do
   # Internal: Implements the 'lower' function — converts a string to lowercase.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "lower"
   @impl true
@@ -10,10 +12,5 @@ defmodule ExCellerate.Functions.General.Lower do
 
   @impl true
   def call([str]) when is_binary(str), do: String.downcase(str)
-
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a string, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_string!(other, name())
 end

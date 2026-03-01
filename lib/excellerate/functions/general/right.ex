@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.General.Right do
   # Internal: Implements the 'right' function — returns the last n characters.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "right"
   @impl true
@@ -20,8 +22,7 @@ defmodule ExCellerate.Functions.General.Right do
   end
 
   def call([str, n]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a string and an integer, got: #{inspect(str)}, #{inspect(n)}",
-      type: :runtime
+    ensure_string!(str, name())
+    ensure_integer!(n, name())
   end
 end

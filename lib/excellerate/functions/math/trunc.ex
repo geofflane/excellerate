@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.Math.Trunc do
   # Internal: Implements the 'trunc' function — truncates toward zero.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "trunc"
   @impl true
@@ -10,10 +12,5 @@ defmodule ExCellerate.Functions.Math.Trunc do
 
   @impl true
   def call([n]) when is_number(n), do: trunc(n)
-
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a number, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_number!(other, name())
 end

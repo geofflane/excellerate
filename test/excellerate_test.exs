@@ -2,6 +2,7 @@ defmodule ExCellerateTest do
   use ExUnit.Case
 
   doctest ExCellerate
+  doctest ExCellerate.Functions.Guards
 
   alias ExCellerate.Test.DoubleFuncRegistry
 

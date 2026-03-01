@@ -3,6 +3,8 @@ defmodule ExCellerate.Functions.Math.Sqrt do
   # Internal: Implements the 'sqrt' function — returns the square root.
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "sqrt"
   @impl true
@@ -17,9 +19,5 @@ defmodule ExCellerate.Functions.Math.Sqrt do
       type: :runtime
   end
 
-  def call([other]) do
-    raise ExCellerate.Error,
-      message: "#{name()} expects a number, got: #{inspect(other)}",
-      type: :runtime
-  end
+  def call([other]), do: ensure_number!(other, name())
 end
