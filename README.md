@@ -56,6 +56,7 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 ### Utility Functions
 
 - `if(cond, true_val)` / `if(cond, true_val, false_val)`: Functional if-statement. The 2-arg form returns `nil` when falsy.
+- `ifs(cond1, val1, cond2, val2, ...)`: Returns the value for the first truthy condition. Use `true` as the final condition for a default. Raises an error if no conditions match.
 - `ifnull(val, default)`: Returns `default` if `val` is `nil`.
 - `coalesce(a, b, ...)`: Returns the first non-nil value.
 - `switch(expr, case1, val1, ..., default)`: Multi-way value matching.

@@ -12,11 +12,7 @@ defmodule ExCellerate.Functions.General.Table do
 
   @impl true
   def call(args) when is_list(args) do
-    if args == [] or rem(length(args), 2) != 0 do
-      raise ExCellerate.Error,
-        message: "'#{name()}' expects an even number of arguments: key1, list1, key2, list2, ...",
-        type: :runtime
-    end
+    ensure_even_args!(args, name())
 
     pairs = Enum.chunk_every(args, 2)
     {keys, lists} = extract_keys_and_lists(pairs)

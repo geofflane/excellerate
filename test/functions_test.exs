@@ -316,6 +316,60 @@ defmodule ExCellerate.FunctionsTest do
     end
   end
 
+  describe "ifs function" do
+    test "returns value for first true condition" do
+      scope = %{"score" => 85}
+
+      assert ExCellerate.eval!("ifs(score > 90, 'A', score > 80, 'B', score > 70, 'C')", scope) ==
+               "B"
+    end
+
+    test "stops at first true condition (order matters)" do
+      scope = %{"x" => 100}
+      assert ExCellerate.eval!("ifs(x > 50, 'first', x > 90, 'second')", scope) == "first"
+    end
+
+    test "true as final condition acts as default" do
+      scope = %{"score" => 50}
+
+      assert ExCellerate.eval!(
+               "ifs(score > 90, 'A', score > 80, 'B', true, 'C')",
+               scope
+             ) == "C"
+    end
+
+    test "returns nil when no conditions are met" do
+      scope = %{"x" => 1}
+      assert ExCellerate.eval!("ifs(x > 10, 'big', x > 5, 'medium')", scope) == nil
+    end
+
+    test "works with single condition/value pair" do
+      assert ExCellerate.eval!("ifs(true, 'yes')") == "yes"
+      assert ExCellerate.eval!("ifs(false, 'yes')") == nil
+    end
+
+    test "works with expressions as conditions and values" do
+      scope = %{"a" => 3, "b" => 7}
+
+      assert ExCellerate.eval!("ifs(a > b, a * 10, b > a, b * 10)", scope) == 70
+    end
+
+    test "rejects odd number of arguments" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("ifs(true, 'a', false)")
+
+      assert msg =~ "ifs"
+      assert msg =~ "even"
+    end
+
+    test "rejects zero arguments" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("ifs()")
+
+      assert msg =~ "ifs"
+    end
+  end
+
   describe "custom functions via registry" do
     test "supports global registration via Registry" do
       assert DoubleFuncRegistry.eval!("double(5)") == 10

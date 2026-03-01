@@ -182,6 +182,37 @@ defmodule ExCellerate.Functions.Guards do
   end
 
   @doc """
+  Validates that an argument list has an even number of elements. Returns
+  `:ok` on success.
+
+  Use this when a function expects paired arguments (e.g., condition/value
+  pairs in `ifs`, or key/list pairs in `table`).
+
+  Raises `ExCellerate.Error` with type `:runtime` if the count is zero or odd.
+
+  ## Examples
+
+      iex> ExCellerate.Functions.Guards.ensure_even_args!([1, 2, 3, 4], "ifs")
+      :ok
+
+      iex> ExCellerate.Functions.Guards.ensure_even_args!([1, 2, 3], "ifs")
+      ** (ExCellerate.Error) Runtime error: 'ifs' requires an even number of arguments (condition/value pairs)
+
+      iex> ExCellerate.Functions.Guards.ensure_even_args!([], "table")
+      ** (ExCellerate.Error) Runtime error: 'table' requires an even number of arguments (condition/value pairs)
+  """
+  @spec ensure_even_args!(list(), String.t()) :: :ok
+  def ensure_even_args!(args, func_name) when is_list(args) do
+    if args == [] or rem(length(args), 2) != 0 do
+      raise ExCellerate.Error,
+        message: "'#{func_name}' requires an even number of arguments (condition/value pairs)",
+        type: :runtime
+    end
+
+    :ok
+  end
+
+  @doc """
   Validates that all lists in a collection have the same length. Returns `:ok`
   on success.
 
