@@ -234,6 +234,49 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("if(null, 42)") == nil
     end
 
+    test "isnull returns true for null values" do
+      assert ExCellerate.eval!("isnull(null)") == true
+      assert ExCellerate.eval!("isnull(a)", %{"a" => nil}) == true
+    end
+
+    test "isnull returns false for non-null values" do
+      assert ExCellerate.eval!("isnull(0)") == false
+      assert ExCellerate.eval!("isnull('')") == false
+      assert ExCellerate.eval!("isnull(false)") == false
+      assert ExCellerate.eval!("isnull('hello')") == false
+      assert ExCellerate.eval!("isnull(42)") == false
+    end
+
+    test "isnull works in expressions" do
+      scope = %{"val" => nil}
+      assert ExCellerate.eval!("isnull(val) ? 'missing' : 'present'", scope) == "missing"
+    end
+
+    test "isblank returns true for null and empty strings" do
+      assert ExCellerate.eval!("isblank(null)") == true
+      assert ExCellerate.eval!("isblank('')") == true
+      assert ExCellerate.eval!("isblank(a)", %{"a" => nil}) == true
+      assert ExCellerate.eval!("isblank(a)", %{"a" => ""}) == true
+    end
+
+    test "isblank returns true for whitespace-only strings" do
+      assert ExCellerate.eval!("isblank(a)", %{"a" => "  "}) == true
+      assert ExCellerate.eval!("isblank(a)", %{"a" => "\t\n"}) == true
+    end
+
+    test "isblank returns false for non-blank values" do
+      assert ExCellerate.eval!("isblank(0)") == false
+      assert ExCellerate.eval!("isblank(false)") == false
+      assert ExCellerate.eval!("isblank('hello')") == false
+      assert ExCellerate.eval!("isblank(42)") == false
+      assert ExCellerate.eval!("isblank(' x ')") == false
+    end
+
+    test "isblank works in expressions" do
+      scope = %{"name" => "  "}
+      assert ExCellerate.eval!("isblank(name) ? 'Anonymous' : trim(name)", scope) == "Anonymous"
+    end
+
     test "calls lookup builtin" do
       assert ExCellerate.eval!("lookup(map, 'key')", %{"map" => %{"key" => "val"}}) == "val"
       assert ExCellerate.eval!("lookup(list, 1)", %{"list" => ["a", "b", "c"]}) == "b"

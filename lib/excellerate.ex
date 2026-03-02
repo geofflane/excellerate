@@ -60,8 +60,10 @@ defmodule ExCellerate do
   | Function | Description |
   |----------|-------------|
   | `if(cond, t)` or `if(cond, t, f)` | Returns `t` if truthy; `f` (or `nil`) otherwise |
-  | `ifs(c1, v1, c2, v2, ...)` | Returns value for first truthy condition; error if none match |
+  | `ifs(c1, v1, c2, v2, ...)` | Returns value for first truthy condition; `nil` if none match |
   | `ifnull(val, default)` | Returns `default` if `val` is nil |
+  | `isnull(val)` | Returns `true` if `val` is nil, `false` otherwise |
+  | `isblank(val)` | Returns `true` if `val` is nil or a whitespace-only string |
   | `coalesce(a, b, ...)` | Returns the first non-nil value |
   | `switch(expr, c1, v1, ..., default)` | Multi-way value matching |
   | `and(a, b, ...)` | Returns `true` if all arguments are truthy |
