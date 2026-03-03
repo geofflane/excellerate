@@ -172,6 +172,55 @@ ExCellerate.eval!("order.items[1].name", scope)
 # => "Gadget"
 ```
 
+### Nil Propagation
+
+Path access uses **nil propagation**: if any key along a dotted path is missing
+or the target is `nil`, the expression returns `nil` instead of raising an
+error. This mirrors how spreadsheets treat empty cells and removes the need for
+defensive checks at every level of a nested path.
+
+```elixir
+scope = %{"user" => %{"name" => "Alice"}}
+
+# Missing leaf key
+ExCellerate.eval!("user.email", scope)
+# => nil
+
+# Missing intermediate key — .name is never attempted
+ExCellerate.eval!("user.profile.name", scope)
+# => nil
+
+# Explicit nil value
+ExCellerate.eval!("user.name", %{"user" => nil})
+# => nil
+
+# List index out of bounds
+ExCellerate.eval!("list[99]", %{"list" => [1, 2, 3]})
+# => nil
+```
+
+This makes `ifnull`, `coalesce`, and ternaries useful for providing defaults:
+
+```elixir
+ExCellerate.eval!("ifnull(user.email, 'no email')", %{"user" => %{}})
+# => "no email"
+
+ExCellerate.eval!("coalesce(user.nick, user.name, 'anonymous')", %{"user" => %{}})
+# => "anonymous"
+
+ExCellerate.eval!("user.name ? user.name : 'unknown'", %{"user" => %{}})
+# => "unknown"
+```
+
+**Note:** Root variable lookup still raises. Referencing a variable that doesn't
+exist in the scope at all (e.g. `totally_unknown`) is treated as a likely typo
+and returns an error:
+
+```elixir
+ExCellerate.eval("totally_unknown", %{})
+# => {:error, %ExCellerate.Error{message: "variable not found: totally_unknown"}}
+```
+
 ### Combining Functions, Arithmetic, and Logic
 
 ```elixir

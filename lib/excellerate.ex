@@ -100,6 +100,34 @@ defmodule ExCellerate do
 
   This works with `validate/2` and `compile/2` as well.
 
+  ## Nil Propagation
+
+  Dot and bracket access use **nil propagation**: if any key in a path is
+  missing or the target is `nil`, the entire expression returns `nil` instead
+  of raising an error. This mirrors how spreadsheets treat empty cells and
+  avoids the need for defensive checks at every level of a nested path.
+
+      ExCellerate.eval!("user.profile.name", %{"user" => %{}})
+      # => nil  (profile is missing, so .name is never attempted)
+
+      ExCellerate.eval!("user.name", %{"user" => nil})
+      # => nil  (user is nil, short-circuits)
+
+      ExCellerate.eval!("list[99]", %{"list" => [1, 2, 3]})
+      # => nil  (index out of bounds)
+
+  Use `ifnull/2`, `coalesce/2+`, or a ternary to provide defaults:
+
+      ExCellerate.eval!("ifnull(user.name, 'anonymous')", %{"user" => %{}})
+      # => "anonymous"
+
+  **Root variable lookup still raises.** Referencing a variable that doesn't
+  exist in the scope at all (e.g., `unknown_var`) is treated as a likely typo
+  and returns `{:error, %ExCellerate.Error{}}`:
+
+      ExCellerate.eval("totally_unknown", %{})
+      # => {:error, %ExCellerate.Error{message: "variable not found: totally_unknown"}}
+
   ## Examples
 
       iex> ExCellerate.eval!("1 + 2 * 3")

@@ -281,36 +281,36 @@ defmodule ExCellerate.Compiler do
 
     quote do
       unquote(target_var) = unquote(target_ast)
-      unquote(key_var) = unquote(key_ast)
-      unquote(sentinel_var) = unquote(Macro.escape(@not_found_sentinel))
 
-      case unquote(target_var) do
-        list when is_list(list) and is_integer(unquote(key_var)) ->
-          Enum.at(list, unquote(key_var), unquote(sentinel_var))
+      if is_nil(unquote(target_var)) do
+        nil
+      else
+        unquote(key_var) = unquote(key_ast)
+        unquote(sentinel_var) = unquote(Macro.escape(@not_found_sentinel))
 
-        %{__struct__: _} = struct ->
-          # Structs don't implement Access; use Map.get with atom key.
-          ExCellerate.Compiler.struct_get(
-            struct,
-            unquote(key_var),
-            unquote(sentinel_var)
-          )
+        case unquote(target_var) do
+          list when is_list(list) and is_integer(unquote(key_var)) ->
+            Enum.at(list, unquote(key_var), unquote(sentinel_var))
 
-        _ ->
-          ExCellerate.Compiler.map_get(
-            unquote(target_var),
-            unquote(key_var),
-            unquote(sentinel_var)
-          )
-      end
-      |> case do
-        ^unquote(sentinel_var) ->
-          raise ExCellerate.Error,
-            message: "Access failed: key not found",
-            type: :runtime
+          %{__struct__: _} = struct ->
+            # Structs don't implement Access; use Map.get with atom key.
+            ExCellerate.Compiler.struct_get(
+              struct,
+              unquote(key_var),
+              unquote(sentinel_var)
+            )
 
-        val ->
-          val
+          _ ->
+            ExCellerate.Compiler.map_get(
+              unquote(target_var),
+              unquote(key_var),
+              unquote(sentinel_var)
+            )
+        end
+        |> case do
+          ^unquote(sentinel_var) -> nil
+          val -> val
+        end
       end
     end
   end
