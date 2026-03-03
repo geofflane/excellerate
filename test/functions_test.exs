@@ -434,6 +434,63 @@ defmodule ExCellerate.FunctionsTest do
     end
   end
 
+  describe "list_functions/0" do
+    test "returns a list of modules" do
+      functions = DoubleFuncRegistry.list_functions()
+      assert is_list(functions)
+      assert length(functions) > 0
+
+      Enum.each(functions, fn mod ->
+        assert is_atom(mod)
+        assert function_exported?(mod, :name, 0)
+        assert function_exported?(mod, :arity, 0)
+        assert function_exported?(mod, :call, 1)
+      end)
+    end
+
+    test "includes custom plugin functions" do
+      functions = DoubleFuncRegistry.list_functions()
+      assert ExCellerate.Test.DoubleFuncRegistry.Double in functions
+    end
+
+    test "includes default built-in functions" do
+      functions = DoubleFuncRegistry.list_functions()
+      assert ExCellerate.Functions.Math.Abs in functions
+    end
+
+    test "plugins override defaults with the same name" do
+      functions = OverrideRegistry.list_functions()
+      abs_modules = Enum.filter(functions, &(&1.name() == "abs"))
+
+      # Only one entry for "abs" — the override, not both
+      assert length(abs_modules) == 1
+      assert hd(abs_modules) == ExCellerate.Test.OverrideRegistry.MyAbs
+    end
+
+    test "each function name appears exactly once" do
+      functions = DoubleFuncRegistry.list_functions()
+      names = Enum.map(functions, & &1.name())
+
+      assert names == Enum.uniq(names)
+    end
+
+    test "total count equals defaults plus plugins (minus overrides)" do
+      default_count = length(ExCellerate.Functions.list_defaults())
+      functions = DoubleFuncRegistry.list_functions()
+
+      # DoubleFuncRegistry adds 1 plugin ("double") that doesn't overlap defaults
+      assert length(functions) == default_count + 1
+    end
+
+    test "modules can be introspected for name and arity" do
+      functions = DoubleFuncRegistry.list_functions()
+      double = Enum.find(functions, &(&1.name() == "double"))
+
+      assert double.name() == "double"
+      assert double.arity() == 1
+    end
+  end
+
   describe "arity validation" do
     test "rejects too many args for fixed-arity function" do
       assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =

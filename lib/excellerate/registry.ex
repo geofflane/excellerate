@@ -95,9 +95,29 @@ defmodule ExCellerate.Registry do
         end
       end
 
+    module_list =
+      all_functions_map
+      |> Enum.map(fn {name, mod} -> {name, mod} end)
+      |> Enum.sort_by(&elem(&1, 0))
+      |> Enum.map(&elem(&1, 1))
+
     quote do
       unquote(clauses)
       def resolve_function(_), do: :error
+
+      @doc """
+      Returns a sorted list of all function modules available in this registry.
+
+      This includes both built-in defaults and any plugins registered via
+      the `:plugins` option, with plugins taking precedence when names overlap.
+
+      Each module implements the `ExCellerate.Function` behaviour and responds
+      to `name/0`, `arity/0`, and `call/1`.
+      """
+      @spec list_functions() :: [module()]
+      def list_functions do
+        unquote(module_list)
+      end
     end
   end
 end
