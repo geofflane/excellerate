@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.General.Upper do
-  @moduledoc false
-  # Internal: Implements the 'upper' function — converts a string to uppercase.
+  @moduledoc """
+  Converts a string to uppercase.
+
+  ## Examples
+
+      upper('hello')       → 'HELLO'
+      upper('Hello World') → 'HELLO WORLD'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

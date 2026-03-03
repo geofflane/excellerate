@@ -1,8 +1,22 @@
 defmodule ExCellerate.Functions.General.Switch do
-  @moduledoc false
-  # Internal: Implements the 'switch' function — multi-way value matching.
-  # Usage: switch(expr, case1, val1, case2, val2, ..., [default])
-  # If the number of remaining args after expr is odd, the last arg is the default.
+  @moduledoc """
+  Matches an expression against a series of case/value pairs and returns
+  the value for the first match.
+
+  Arguments after the expression are provided in pairs: `case1, value1,
+  case2, value2, ...`. If the total number of remaining arguments is odd,
+  the last argument is used as a default. Returns `null` if nothing
+  matches and no default is given.
+
+  ## Examples
+
+      switch(status, 'active', 'Running', 'paused', 'Paused', 'Unknown')
+        → 'Running' (when status is 'active')
+        → 'Unknown' (when status is 'archived')
+
+      switch('B', 'A', 1, 'B', 2, 'C', 3) → 2
+      switch('D', 'A', 1, 'B', 2)          → null
+  """
   @behaviour ExCellerate.Function
 
   @impl true

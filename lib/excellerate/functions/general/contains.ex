@@ -1,5 +1,16 @@
 defmodule ExCellerate.Functions.General.Contains do
-  @moduledoc false
+  @moduledoc """
+  Returns `true` if a string contains the given substring, `false`
+  otherwise.
+
+  Returns `false` if either argument is not a string.
+
+  ## Examples
+
+      contains('Hello World', 'World') → true
+      contains('Hello World', 'Foo')   → false
+      contains(123, 'foo')             → false
+  """
   @behaviour ExCellerate.Function
 
   @impl true

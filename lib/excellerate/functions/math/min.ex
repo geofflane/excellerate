@@ -1,6 +1,15 @@
 defmodule ExCellerate.Functions.Math.Min do
-  @moduledoc false
-  # Internal: Implements the 'min' function — minimum of two values or a list.
+  @moduledoc """
+  Returns the smallest of the given values.
+
+  Accepts any number of arguments.
+
+  ## Examples
+
+      min(5)              → 5
+      min(3, 1, 2)        → 1
+      min(10, 20, 5, 15)  → 5
+  """
   @behaviour ExCellerate.Function
 
   @impl true

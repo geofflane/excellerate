@@ -1,6 +1,15 @@
 defmodule ExCellerate.Functions.Math.Max do
-  @moduledoc false
-  # Internal: Implements the 'max' function — maximum of two values or a list.
+  @moduledoc """
+  Returns the largest of the given values.
+
+  Accepts any number of arguments.
+
+  ## Examples
+
+      max(5)              → 5
+      max(3, 1, 2)        → 3
+      max(10, 20, 5, 15)  → 20
+  """
   @behaviour ExCellerate.Function
 
   @impl true

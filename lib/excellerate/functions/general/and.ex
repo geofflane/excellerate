@@ -1,6 +1,15 @@
 defmodule ExCellerate.Functions.General.And do
-  @moduledoc false
-  # Internal: Implements the 'and' function — returns true if all arguments are truthy.
+  @moduledoc """
+  Returns `true` if all arguments are truthy, `false` otherwise.
+
+  Accepts any number of arguments.
+
+  ## Examples
+
+      and(true, true, true)  → true
+      and(true, false, true) → false
+      and(score > 50, age >= 18) → true (when both conditions hold)
+  """
   @behaviour ExCellerate.Function
 
   @impl true

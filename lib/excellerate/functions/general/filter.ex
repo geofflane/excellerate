@@ -1,5 +1,17 @@
 defmodule ExCellerate.Functions.General.Filter do
-  @moduledoc false
+  @moduledoc """
+  Filters a list using a parallel list of booleans.
+
+  Takes two equal-length lists: the values and a list of `true`/`false`
+  flags. Returns only the values where the corresponding flag is `true`.
+
+  ## Examples
+
+      filter(items, include)
+        → ['apple', 'cherry']
+        (when items is ['apple', 'banana', 'cherry']
+         and include is [true, false, true])
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

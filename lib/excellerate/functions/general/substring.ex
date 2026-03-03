@@ -1,5 +1,17 @@
 defmodule ExCellerate.Functions.General.Substring do
-  @moduledoc false
+  @moduledoc """
+  Extracts a portion of a string starting at a 0-based position.
+
+  With two arguments, returns from the start position to the end of the
+  string. With three arguments, returns at most *length* characters.
+
+  Returns `null` if the value is not a string.
+
+  ## Examples
+
+      substring('Hello World', 6)    → 'World'
+      substring('Hello World', 0, 5) → 'Hello'
+  """
   @behaviour ExCellerate.Function
 
   @impl true

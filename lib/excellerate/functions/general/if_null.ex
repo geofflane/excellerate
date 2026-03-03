@@ -1,5 +1,13 @@
 defmodule ExCellerate.Functions.General.IfNull do
-  @moduledoc false
+  @moduledoc """
+  Returns the value if it is not null, otherwise returns the default.
+
+  ## Examples
+
+      ifnull(name, 'Anonymous') → 'Alice' (when name is 'Alice')
+      ifnull(name, 'Anonymous') → 'Anonymous' (when name is null)
+      ifnull(null, 0)           → 0
+  """
   @behaviour ExCellerate.Function
 
   @impl true

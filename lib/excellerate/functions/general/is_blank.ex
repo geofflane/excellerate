@@ -1,7 +1,18 @@
 defmodule ExCellerate.Functions.General.IsBlank do
-  @moduledoc false
-  # Internal: Implements the 'isblank' function — returns true if value
-  # is nil or a whitespace-only (including empty) string.
+  @moduledoc """
+  Returns `true` if a value is null, an empty string, or a string
+  containing only whitespace.
+
+  Returns `false` for all other values including `0` and `false`.
+
+  ## Examples
+
+      isblank(null)   → true
+      isblank('')     → true
+      isblank('  ')   → true
+      isblank('hello') → false
+      isblank(0)      → false
+  """
   @behaviour ExCellerate.Function
 
   @impl true

@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.General.Left do
-  @moduledoc false
-  # Internal: Implements the 'left' function — returns the first n characters.
+  @moduledoc """
+  Returns the first *n* characters from a string.
+
+  When called with one argument, returns the first character. With two
+  arguments, returns the first *n* characters.
+
+  ## Examples
+
+      left('Hello World', 5) → 'Hello'
+      left('Hello')          → 'H'
+      left('Hi', 10)         → 'Hi'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

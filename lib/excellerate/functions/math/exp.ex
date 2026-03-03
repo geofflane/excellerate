@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.Math.Exp do
-  @moduledoc false
-  # Internal: Implements the 'exp' function — e raised to the power.
+  @moduledoc """
+  Returns *e* raised to the given power.
+
+  ## Examples
+
+      exp(0) → 1.0
+      exp(1) → 2.718281828...
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

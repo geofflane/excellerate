@@ -1,6 +1,14 @@
 defmodule ExCellerate.Functions.Math.Sign do
-  @moduledoc false
-  # Internal: Implements the 'sign' function — returns -1, 0, or 1.
+  @moduledoc """
+  Returns the sign of a number: `-1` for negative, `0` for zero, or `1`
+  for positive.
+
+  ## Examples
+
+      sign(-42) → -1
+      sign(0)   → 0
+      sign(42)  → 1
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

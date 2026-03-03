@@ -1,6 +1,13 @@
 defmodule ExCellerate.Functions.Math.Floor do
-  @moduledoc false
-  # Internal: Implements the 'floor' function.
+  @moduledoc """
+  Rounds a number down to the nearest integer.
+
+  ## Examples
+
+      floor(1.9)  → 1
+      floor(3.0)  → 3
+      floor(-1.2) → -2
+  """
   @behaviour ExCellerate.Function
 
   @impl true

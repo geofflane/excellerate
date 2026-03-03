@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.General.TextJoin do
-  @moduledoc false
-  # Internal: Implements the 'textjoin' function — joins values with a delimiter.
+  @moduledoc """
+  Joins values into a single string using a delimiter.
+
+  The first argument is the delimiter; all remaining arguments are the
+  values to join. Non-string values are converted to text automatically.
+
+  ## Examples
+
+      textjoin(', ', 'a', 'b', 'c') → 'a, b, c'
+      textjoin('-', 1, 2, 3)        → '1-2-3'
+      textjoin(' ', first, last)     → 'Jane Doe' (when first is 'Jane', last is 'Doe')
+  """
   @behaviour ExCellerate.Function
 
   @impl true

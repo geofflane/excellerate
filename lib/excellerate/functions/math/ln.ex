@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.Math.Ln do
-  @moduledoc false
-  # Internal: Implements the 'ln' function — natural logarithm (base e).
+  @moduledoc """
+  Returns the natural logarithm (base *e*) of a number.
+
+  ## Examples
+
+      ln(1)           → 0.0
+      ln(2.718281828) → 1.0 (approximately)
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

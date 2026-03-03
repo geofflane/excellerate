@@ -1,7 +1,13 @@
 defmodule ExCellerate.Functions.General.Replace do
-  @moduledoc false
-  # Internal: Implements the 'replace' function — replaces all occurrences
-  # of a substring. Equivalent to Excel's SUBSTITUTE.
+  @moduledoc """
+  Replaces all occurrences of a substring with a replacement string.
+
+  ## Examples
+
+      replace('hello world', 'world', 'there') → 'hello there'
+      replace('aaa', 'a', 'b')                 → 'bbb'
+      replace('hello', 'xyz', 'abc')            → 'hello'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

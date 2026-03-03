@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.Math.Trunc do
-  @moduledoc false
-  # Internal: Implements the 'trunc' function — truncates toward zero.
+  @moduledoc """
+  Truncates a number toward zero, removing any fractional part.
+
+  Unlike `floor` or `ceil`, `trunc` always drops the decimal portion
+  regardless of sign.
+
+  ## Examples
+
+      trunc(3.7)  → 3
+      trunc(-3.7) → -3
+      trunc(5)    → 5
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

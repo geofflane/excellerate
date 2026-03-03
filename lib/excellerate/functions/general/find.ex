@@ -1,7 +1,16 @@
 defmodule ExCellerate.Functions.General.Find do
-  @moduledoc false
-  # Internal: Implements the 'find' function — returns the 0-based index
-  # of the first occurrence of search in text, or -1 if not found.
+  @moduledoc """
+  Returns the 0-based position of the first occurrence of a search string
+  within text, or `-1` if not found.
+
+  An optional third argument specifies a starting position for the search.
+
+  ## Examples
+
+      find('world', 'hello world')    → 6
+      find('xyz', 'hello')            → -1
+      find('o', 'hello world', 5)     → 7
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

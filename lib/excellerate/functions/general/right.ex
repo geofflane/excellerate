@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.General.Right do
-  @moduledoc false
-  # Internal: Implements the 'right' function — returns the last n characters.
+  @moduledoc """
+  Returns the last *n* characters from a string.
+
+  When called with one argument, returns the last character. With two
+  arguments, returns the last *n* characters.
+
+  ## Examples
+
+      right('Hello World', 5) → 'World'
+      right('Hello')          → 'o'
+      right('Hi', 10)         → 'Hi'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

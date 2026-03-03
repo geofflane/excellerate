@@ -1,6 +1,15 @@
 defmodule ExCellerate.Functions.Math.Avg do
-  @moduledoc false
-  # Internal: Implements the 'avg' function — arithmetic mean of arguments or a list.
+  @moduledoc """
+  Returns the arithmetic mean (average) of the given values.
+
+  Accepts any number of numeric arguments.
+
+  ## Examples
+
+      avg(2, 4, 6) → 4.0
+      avg(10)      → 10.0
+      avg(1, 2)    → 1.5
+  """
   @behaviour ExCellerate.Function
 
   @impl true

@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.General.Coalesce do
-  @moduledoc false
-  # Internal: Implements the 'coalesce' function — returns the first non-nil value.
+  @moduledoc """
+  Returns the first non-null value from the given arguments.
+
+  Returns `null` if all arguments are `null`. Accepts any number of
+  arguments.
+
+  ## Examples
+
+      coalesce(null, null, 'found') → 'found'
+      coalesce('first', 'second')   → 'first'
+      coalesce(a, b, 0)             → 0 (when a and b are null)
+  """
   @behaviour ExCellerate.Function
 
   @impl true

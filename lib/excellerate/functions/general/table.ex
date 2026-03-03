@@ -1,5 +1,17 @@
 defmodule ExCellerate.Functions.General.Table do
-  @moduledoc false
+  @moduledoc """
+  Builds a list of maps (rows) from column name/list pairs.
+
+  Arguments are provided in pairs: `column_name, values_list, ...`. All
+  value lists must be the same length. Each row in the result is a map
+  with the column names as keys.
+
+  ## Examples
+
+      table('name', names, 'score', scores)
+        → [{'name': 'Alice', 'score': 90}, {'name': 'Bob', 'score': 85}]
+        (when names is ['Alice', 'Bob'] and scores is [90, 85])
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

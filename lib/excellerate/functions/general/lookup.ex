@@ -1,5 +1,17 @@
 defmodule ExCellerate.Functions.General.Lookup do
-  @moduledoc false
+  @moduledoc """
+  Retrieves a value from a map by key or from a list by index.
+
+  An optional third argument provides a default value to return when the
+  key or index is not found. Without a default, returns `null`.
+
+  ## Examples
+
+      lookup(user, 'name')              → 'Alice' (when user.name is 'Alice')
+      lookup(items, 0)                  → 'first' (first element of list)
+      lookup(user, 'role', 'guest')     → 'guest' (when 'role' key is missing)
+      lookup(items, 99, 'out of range') → 'out of range'
+  """
   @behaviour ExCellerate.Function
 
   @impl true

@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.Math.Log do
-  @moduledoc false
-  # Internal: Implements the 'log' function — logarithm with specified base.
+  @moduledoc """
+  Returns the logarithm of a value in the specified base.
+
+  ## Examples
+
+      log(8, 2)    → 3.0
+      log(100, 10) → 2.0
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

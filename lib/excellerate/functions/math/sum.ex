@@ -1,6 +1,15 @@
 defmodule ExCellerate.Functions.Math.Sum do
-  @moduledoc false
-  # Internal: Implements the 'sum' function — sums arguments or a list.
+  @moduledoc """
+  Returns the sum of the given values.
+
+  Accepts any number of numeric arguments.
+
+  ## Examples
+
+      sum(1, 2, 3)    → 6
+      sum(10)         → 10
+      sum(a, b, c)    → (sum of a, b, and c)
+  """
   @behaviour ExCellerate.Function
 
   @impl true

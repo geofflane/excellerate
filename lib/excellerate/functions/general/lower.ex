@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.General.Lower do
-  @moduledoc false
-  # Internal: Implements the 'lower' function — converts a string to lowercase.
+  @moduledoc """
+  Converts a string to lowercase.
+
+  ## Examples
+
+      lower('HELLO')       → 'hello'
+      lower('Hello World') → 'hello world'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards

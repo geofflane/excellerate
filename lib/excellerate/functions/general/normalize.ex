@@ -1,5 +1,16 @@
 defmodule ExCellerate.Functions.General.Normalize do
-  @moduledoc false
+  @moduledoc """
+  Converts a string to a normalized form by lowercasing it and replacing
+  spaces with underscores.
+
+  Non-string values are returned unchanged.
+
+  ## Examples
+
+      normalize('Hello World') → 'hello_world'
+      normalize('First Name')  → 'first_name'
+      normalize(42)            → 42
+  """
   @behaviour ExCellerate.Function
 
   @impl true

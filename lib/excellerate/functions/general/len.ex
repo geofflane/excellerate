@@ -1,6 +1,16 @@
 defmodule ExCellerate.Functions.General.Len do
-  @moduledoc false
-  # Internal: Implements the 'len' function — returns the length of a string or list.
+  @moduledoc """
+  Returns the length of a string or list.
+
+  For strings, returns the number of characters. For lists, returns the
+  number of elements.
+
+  ## Examples
+
+      len('hello') → 5
+      len('')      → 0
+      len(name)    → 5 (when name is 'Alice')
+  """
   @behaviour ExCellerate.Function
 
   @impl true

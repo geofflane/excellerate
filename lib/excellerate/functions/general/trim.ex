@@ -1,6 +1,12 @@
 defmodule ExCellerate.Functions.General.Trim do
-  @moduledoc false
-  # Internal: Implements the 'trim' function — removes leading/trailing whitespace.
+  @moduledoc """
+  Removes leading and trailing whitespace from a string.
+
+  ## Examples
+
+      trim('  hello  ') → 'hello'
+      trim('hello')     → 'hello'
+  """
   @behaviour ExCellerate.Function
 
   import ExCellerate.Functions.Guards
