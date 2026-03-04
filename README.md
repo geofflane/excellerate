@@ -70,6 +70,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
   - Returns `default` if the value is not found.
 - `filter(list, predicates)`: Returns items where the corresponding predicate is `true`.
 - `table(key1, list1, key2, list2, ...)`: Builds a list of maps from alternating key/list pairs.
+- `take(list, rows)` / `take(list, rows, cols)`: Extracts rows, columns, or both from a list or 2D array. Positive counts take from the beginning, negative from the end. Pass `null` to skip a dimension (e.g., `take(data, null, 2)` for columns only).
+- `slice(list, start)` / `slice(list, start, length)`: Extracts a contiguous section of a list. Zero-based start index; negative indices count from the end. Without length, returns everything from start to end.
 
 ### Special Forms
 
@@ -480,6 +482,56 @@ scope = %{
 
 ExCellerate.eval!("table('product', orders[*].product, 'total', orders[*].(qty * price))", scope)
 # => [%{"product" => "Widget", "total" => 20}, %{"product" => "Gadget", "total" => 5}]
+```
+
+### Take and Slice
+
+`take` extracts rows, columns, or both from a list or 2D array. Positive counts
+take from the beginning, negative from the end. Pass `null` to skip a dimension:
+
+```elixir
+scope = %{
+  "grid" => [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+    [9, 10, 11, 12]
+  ]
+}
+
+ExCellerate.eval!("take(grid, 2)", scope)
+# => [[1, 2, 3, 4], [5, 6, 7, 8]]
+
+ExCellerate.eval!("take(grid, -2)", scope)
+# => [[5, 6, 7, 8], [9, 10, 11, 12]]
+
+ExCellerate.eval!("take(grid, null, 2)", scope)
+# => [[1, 2], [5, 6], [9, 10]]
+
+ExCellerate.eval!("take(grid, 2, 2)", scope)
+# => [[1, 2], [5, 6]]
+```
+
+It also works on flat lists:
+
+```elixir
+ExCellerate.eval!("take(items, 3)", %{"items" => [10, 20, 30, 40, 50]})
+# => [10, 20, 30]
+```
+
+`slice` extracts a contiguous section of a list by start index and optional
+length. The start index is zero-based; negative indices count from the end:
+
+```elixir
+scope = %{"items" => [10, 20, 30, 40, 50]}
+
+ExCellerate.eval!("slice(items, 1)", scope)
+# => [20, 30, 40, 50]
+
+ExCellerate.eval!("slice(items, 1, 3)", scope)
+# => [20, 30, 40]
+
+ExCellerate.eval!("slice(items, -2)", scope)
+# => [40, 50]
 ```
 
 ### Putting It Together

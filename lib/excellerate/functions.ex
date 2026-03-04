@@ -45,7 +45,9 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.IsNull,
     ExCellerate.Functions.General.Lookup,
     ExCellerate.Functions.General.Or,
-    ExCellerate.Functions.General.Switch
+    ExCellerate.Functions.General.Slice,
+    ExCellerate.Functions.General.Switch,
+    ExCellerate.Functions.General.Take
   ]
 
   # Returns the list of modules for all default functions.

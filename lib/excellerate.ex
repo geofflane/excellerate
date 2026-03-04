@@ -72,6 +72,10 @@ defmodule ExCellerate do
   | `lookup(coll, key, default)` | Same, with a default for missing keys |
   | `filter(list, predicates)` | Returns items where predicate is `true` |
   | `table(key1, list1, ...)` | Builds a list of maps from key/list pairs |
+  | `take(list, rows)` | Takes the first/last `rows` elements (negative counts from end) |
+  | `take(list, rows, cols)` | Takes rows and columns from a 2D array; pass `null` to skip a dimension |
+  | `slice(list, start)` | Returns elements from `start` index to end (negative counts from end) |
+  | `slice(list, start, len)` | Returns `len` elements starting at `start` |
 
   ### Special Forms
 
@@ -213,6 +217,25 @@ defmodule ExCellerate do
 
       let(big, filter(orders, orders[*].(qty > 1)),
         table('product', big[*].product, 'total', big[*].(qty * price)))
+
+  ## Take and Slice
+
+  `take/2` and `take/3` extract rows, columns, or both from a list or 2D
+  array. Positive counts take from the beginning, negative from the end.
+  Pass `null` to skip a dimension:
+
+      take(data, 3)          # first 3 rows
+      take(data, -3)         # last 3 rows
+      take(data, null, 2)    # first 2 columns (all rows)
+      take(data, 2, 2)       # first 2 rows and 2 columns
+
+  `slice/2` and `slice/3` extract a contiguous section of a list by
+  start index and optional length. The start index is zero-based, and
+  negative indices count from the end:
+
+      slice(items, 1)        # from index 1 to end
+      slice(items, 1, 3)     # 3 elements starting at index 1
+      slice(items, -2)       # last 2 elements
   """
 
   alias ExCellerate.Compiler

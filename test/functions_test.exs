@@ -359,6 +359,257 @@ defmodule ExCellerate.FunctionsTest do
     end
   end
 
+  describe "take" do
+    setup do
+      scope = %{
+        "grid" => [
+          [1, 2, 3, 4],
+          [5, 6, 7, 8],
+          [9, 10, 11, 12],
+          [13, 14, 15, 16]
+        ]
+      }
+
+      %{scope: scope}
+    end
+
+    test "takes first N rows with positive count", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, 2)", scope) == [
+               [1, 2, 3, 4],
+               [5, 6, 7, 8]
+             ]
+    end
+
+    test "takes last N rows with negative count", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, -2)", scope) == [
+               [9, 10, 11, 12],
+               [13, 14, 15, 16]
+             ]
+    end
+
+    test "takes all rows when count exceeds length", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, 10)", scope) == scope["grid"]
+    end
+
+    test "takes all rows when negative count exceeds length", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, -10)", scope) == scope["grid"]
+    end
+
+    test "takes first N columns with null rows", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, null, 2)", scope) == [
+               [1, 2],
+               [5, 6],
+               [9, 10],
+               [13, 14]
+             ]
+    end
+
+    test "takes last N columns with negative count", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, null, -2)", scope) == [
+               [3, 4],
+               [7, 8],
+               [11, 12],
+               [15, 16]
+             ]
+    end
+
+    test "takes all columns when count exceeds width", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, null, 10)", scope) == scope["grid"]
+    end
+
+    test "takes first N rows and first M columns", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, 2, 2)", scope) == [
+               [1, 2],
+               [5, 6]
+             ]
+    end
+
+    test "takes last N rows and first M columns", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, -2, 2)", scope) == [
+               [9, 10],
+               [13, 14]
+             ]
+    end
+
+    test "takes first N rows and last M columns", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, 2, -2)", scope) == [
+               [3, 4],
+               [7, 8]
+             ]
+    end
+
+    test "takes last N rows and last M columns", %{scope: scope} do
+      assert ExCellerate.eval!("take(grid, -2, -2)", scope) == [
+               [11, 12],
+               [15, 16]
+             ]
+    end
+
+    test "takes first N elements from a flat list" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("take(items, 3)", scope) == [10, 20, 30]
+    end
+
+    test "takes last N elements from a flat list" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("take(items, -3)", scope) == [30, 40, 50]
+    end
+
+    test "zero rows returns empty list" do
+      scope = %{"data" => [[1, 2], [3, 4]]}
+      assert ExCellerate.eval!("take(data, 0)", scope) == []
+    end
+
+    test "zero columns returns empty rows" do
+      scope = %{"data" => [[1, 2], [3, 4]]}
+      assert ExCellerate.eval!("take(data, null, 0)", scope) == [[], []]
+    end
+
+    test "empty list returns empty list" do
+      scope = %{"data" => []}
+      assert ExCellerate.eval!("take(data, 3)", scope) == []
+    end
+
+    test "rejects non-list first argument" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("take(42, 2)")
+
+      assert msg =~ "take"
+      assert msg =~ "list"
+    end
+
+    test "rejects non-integer row count" do
+      scope = %{"data" => [[1, 2]]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("take(data, 1.5)", scope)
+
+      assert msg =~ "take"
+      assert msg =~ "integer"
+    end
+
+    test "rejects non-integer column count" do
+      scope = %{"data" => [[1, 2]]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("take(data, null, 1.5)", scope)
+
+      assert msg =~ "take"
+      assert msg =~ "integer"
+    end
+
+    test "rejects wrong arity" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.eval("take()")
+
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.eval("take(data, 1, 2, 3)")
+    end
+  end
+
+  describe "slice" do
+    test "slices from start index to end of list" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("slice(items, 1)", scope) == [20, 30, 40, 50]
+    end
+
+    test "slices from start index with length" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("slice(items, 1, 3)", scope) == [20, 30, 40]
+    end
+
+    test "slices from beginning" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("slice(items, 0, 2)", scope) == [10, 20]
+    end
+
+    test "slices a single element" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("slice(items, 1, 1)", scope) == [20]
+    end
+
+    test "negative start counts from end" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("slice(items, -2)", scope) == [40, 50]
+    end
+
+    test "negative start with length" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("slice(items, -3, 2)", scope) == [30, 40]
+    end
+
+    test "start beyond end returns empty list" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("slice(items, 10)", scope) == []
+    end
+
+    test "length exceeding remaining elements is clamped" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("slice(items, 1, 100)", scope) == [20, 30]
+    end
+
+    test "length of zero returns empty list" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("slice(items, 1, 0)", scope) == []
+    end
+
+    test "empty list returns empty list" do
+      scope = %{"items" => []}
+      assert ExCellerate.eval!("slice(items, 0)", scope) == []
+    end
+
+    test "negative start beyond beginning clamps to zero" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("slice(items, -10, 2)", scope) == [10, 20]
+    end
+
+    test "rejects non-list first argument" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("slice(42, 1)")
+
+      assert msg =~ "slice"
+      assert msg =~ "list"
+    end
+
+    test "rejects non-integer start" do
+      scope = %{"items" => [1, 2, 3]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("slice(items, 1.5)", scope)
+
+      assert msg =~ "slice"
+      assert msg =~ "integer"
+    end
+
+    test "rejects non-integer length" do
+      scope = %{"items" => [1, 2, 3]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("slice(items, 0, 1.5)", scope)
+
+      assert msg =~ "slice"
+      assert msg =~ "integer"
+    end
+
+    test "rejects negative length" do
+      scope = %{"items" => [1, 2, 3]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("slice(items, 0, -1)", scope)
+
+      assert msg =~ "slice"
+      assert msg =~ "non-negative"
+    end
+
+    test "rejects wrong arity" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.eval("slice(items)")
+
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               ExCellerate.eval("slice(items, 0, 1, 2)")
+    end
+  end
+
   describe "ifs function" do
     test "returns value for first true condition" do
       scope = %{"score" => 85}
