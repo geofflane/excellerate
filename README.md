@@ -68,6 +68,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
   - For maps: Looks up `key` in the map.
   - For lists: Returns the element at the integer `key` (index).
   - Returns `default` if the value is not found.
+- `match(lookup_value, list)` / `match(lookup_value, list, match_type)`: Searches for a value in a list and returns its 0-based position. `match_type` controls matching: `0` (default) for exact match, `1` for the largest value &lt;= `lookup_value` (list must be ascending), `-1` for the smallest value &gt;= `lookup_value` (list must be descending). Returns `null` when no match is found.
+- `index(list, row)` / `index(list, row, col)`: Returns a value from a list or 2D array by position (0-based). For 2D arrays (list of lists), pass both `row` and `col`. Returns `null` for out-of-bounds or `null` positions.
 - `filter(list, predicates)`: Returns items where the corresponding predicate is `true`.
 - `table(key1, list1, key2, list2, ...)`: Builds a list of maps from alternating key/list pairs.
 - `take(list, rows)` / `take(list, rows, cols)`: Extracts rows, columns, or both from a list or 2D array. Positive counts take from the beginning, negative from the end. Pass `null` to skip a dimension (e.g., `take(data, null, 2)` for columns only).
@@ -550,6 +552,43 @@ scope = %{
 expr = "let(big, filter(orders, orders[*].(qty > 1)), table('product', big[*].product, 'total', big[*].(qty * price)))"
 ExCellerate.eval!(expr, scope)
 # => [%{"product" => "Widget", "total" => 50}, %{"product" => "Gizmo", "total" => 24}]
+```
+
+### INDEX/MATCH Lookups
+
+The `match` and `index` functions compose naturally to replicate Excel's classic INDEX/MATCH pattern — look up a value in one column based on finding a match in another:
+
+```elixir
+scope = %{
+  "products" => [
+    %{"name" => "Bananas", "price" => 1.25},
+    %{"name" => "Oranges", "price" => 2.50},
+    %{"name" => "Apples", "price" => 1.75}
+  ]
+}
+
+# Find the price of Oranges
+ExCellerate.eval!("index(products[*].price, match('Oranges', products[*].name))", scope)
+# => 2.50
+```
+
+Use `match_type` `1` or `-1` for approximate matching against sorted data:
+
+```elixir
+scope = %{"brackets" => [0, 10000, 50000, 100000], "rates" => [0.10, 0.15, 0.25, 0.35]}
+
+# Find the tax rate for an income of 75000 (largest bracket <= 75000)
+ExCellerate.eval!("index(rates, match(75000, brackets, 1))", scope)
+# => 0.25
+```
+
+When `match` returns `null` (no match found), `index` propagates the `null`:
+
+```elixir
+scope = %{"names" => ["Alice", "Bob"], "scores" => [90, 85]}
+
+ExCellerate.eval!("index(scores, match('Unknown', names))", scope)
+# => nil
 ```
 
 ## Pre-compilation

@@ -856,4 +856,248 @@ defmodule ExCellerate.FunctionsTest do
       end
     end
   end
+
+  describe "match function" do
+    test "exact match in a list of numbers (default match_type)" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("match(30, items)", scope) == 2
+    end
+
+    test "exact match at position 0" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("match(10, items)", scope) == 0
+    end
+
+    test "exact match at last position" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("match(30, items)", scope) == 2
+    end
+
+    test "returns nil when no exact match found" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("match(99, items)", scope) == nil
+    end
+
+    test "exact match in string list" do
+      scope = %{"fruits" => ["Apples", "Bananas", "Oranges"]}
+      assert ExCellerate.eval!("match('Bananas', fruits)", scope) == 1
+    end
+
+    test "returns first match when duplicates exist" do
+      scope = %{"items" => [10, 20, 10, 30]}
+      assert ExCellerate.eval!("match(10, items)", scope) == 0
+    end
+
+    test "matches nil value" do
+      scope = %{"items" => [1, nil, 3]}
+      assert ExCellerate.eval!("match(null, items)", scope) == 1
+    end
+
+    test "matches boolean values" do
+      scope = %{"items" => [false, true, false]}
+      assert ExCellerate.eval!("match(true, items)", scope) == 1
+    end
+
+    test "explicit match_type 0 finds exact match" do
+      scope = %{"items" => [25, 38, 40, 41]}
+      assert ExCellerate.eval!("match(40, items, 0)", scope) == 2
+    end
+
+    test "explicit match_type 0 returns nil on no match" do
+      scope = %{"items" => [25, 38, 40, 41]}
+      assert ExCellerate.eval!("match(39, items, 0)", scope) == nil
+    end
+
+    test "match_type 1 finds exact match in ascending list" do
+      scope = %{"items" => [10, 20, 30, 40]}
+      assert ExCellerate.eval!("match(30, items, 1)", scope) == 2
+    end
+
+    test "match_type 1 finds largest value <= lookup_value" do
+      scope = %{"items" => [10, 20, 30, 40]}
+      assert ExCellerate.eval!("match(25, items, 1)", scope) == 1
+    end
+
+    test "match_type 1 returns nil when lookup_value is less than all items" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("match(5, items, 1)", scope) == nil
+    end
+
+    test "match_type 1 matches last element when lookup_value exceeds all" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("match(100, items, 1)", scope) == 2
+    end
+
+    test "match_type 1 with float values" do
+      scope = %{"items" => [1.0, 2.5, 5.0, 7.5]}
+      assert ExCellerate.eval!("match(3.0, items, 1)", scope) == 1
+    end
+
+    test "match_type -1 finds exact match in descending list" do
+      scope = %{"items" => [40, 30, 20, 10]}
+      assert ExCellerate.eval!("match(30, items, -1)", scope) == 1
+    end
+
+    test "match_type -1 finds smallest value >= lookup_value" do
+      scope = %{"items" => [40, 30, 20, 10]}
+      assert ExCellerate.eval!("match(25, items, -1)", scope) == 1
+    end
+
+    test "match_type -1 returns nil when lookup_value exceeds all items" do
+      scope = %{"items" => [40, 30, 20, 10]}
+      assert ExCellerate.eval!("match(50, items, -1)", scope) == nil
+    end
+
+    test "match_type -1 matches last element when lookup_value is less than all" do
+      scope = %{"items" => [40, 30, 20, 10]}
+      assert ExCellerate.eval!("match(5, items, -1)", scope) == 3
+    end
+
+    test "match on spread column values" do
+      scope = %{
+        "products" => [
+          %{"name" => "Bananas", "count" => 25},
+          %{"name" => "Oranges", "count" => 38},
+          %{"name" => "Apples", "count" => 40}
+        ]
+      }
+
+      assert ExCellerate.eval!("match('Oranges', products[*].name)", scope) == 1
+    end
+
+    test "raises on non-list lookup_array" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("match(1, 'not a list')")
+    end
+
+    test "raises on invalid match_type" do
+      scope = %{"items" => [1, 2, 3]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("match(1, items, 2)", scope)
+    end
+  end
+
+  describe "index function" do
+    test "returns element at given position in 1D list" do
+      scope = %{"items" => [10, 20, 30, 40, 50]}
+      assert ExCellerate.eval!("index(items, 0)", scope) == 10
+      assert ExCellerate.eval!("index(items, 2)", scope) == 30
+      assert ExCellerate.eval!("index(items, 4)", scope) == 50
+    end
+
+    test "returns nil for out-of-bounds index" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("index(items, 5)", scope) == nil
+    end
+
+    test "returns nil for negative index" do
+      scope = %{"items" => [10, 20, 30]}
+      assert ExCellerate.eval!("index(items, -1)", scope) == nil
+    end
+
+    test "works with string lists" do
+      scope = %{"fruits" => ["Apples", "Bananas", "Oranges"]}
+      assert ExCellerate.eval!("index(fruits, 1)", scope) == "Bananas"
+    end
+
+    test "returns element at row and column in 2D array" do
+      scope = %{
+        "grid" => [
+          ["a", "b", "c"],
+          ["d", "e", "f"],
+          ["g", "h", "i"]
+        ]
+      }
+
+      assert ExCellerate.eval!("index(grid, 0, 0)", scope) == "a"
+      assert ExCellerate.eval!("index(grid, 1, 1)", scope) == "e"
+      assert ExCellerate.eval!("index(grid, 2, 2)", scope) == "i"
+    end
+
+    test "returns nil for out-of-bounds row in 2D array" do
+      scope = %{"grid" => [[1, 2], [3, 4]]}
+      assert ExCellerate.eval!("index(grid, 5, 0)", scope) == nil
+    end
+
+    test "returns nil for out-of-bounds column in 2D array" do
+      scope = %{"grid" => [[1, 2], [3, 4]]}
+      assert ExCellerate.eval!("index(grid, 0, 5)", scope) == nil
+    end
+
+    test "works with numeric 2D arrays" do
+      scope = %{
+        "data" => [
+          [100, 200, 300],
+          [400, 500, 600]
+        ]
+      }
+
+      assert ExCellerate.eval!("index(data, 0, 2)", scope) == 300
+      assert ExCellerate.eval!("index(data, 1, 0)", scope) == 400
+    end
+
+    test "raises on non-list array" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("index('not a list', 0)")
+    end
+
+    test "raises on non-integer row_num" do
+      scope = %{"items" => [1, 2, 3]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("index(items, 'a')", scope)
+    end
+
+    test "raises on non-integer column_num" do
+      scope = %{"grid" => [[1, 2], [3, 4]]}
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("index(grid, 0, 'a')", scope)
+    end
+  end
+
+  describe "match + index composition" do
+    test "index/match pattern — look up value by key column" do
+      scope = %{
+        "products" => [
+          %{"name" => "Bananas", "price" => 1.25},
+          %{"name" => "Oranges", "price" => 2.50},
+          %{"name" => "Apples", "price" => 1.75}
+        ]
+      }
+
+      assert ExCellerate.eval!(
+               "index(products[*].price, match('Oranges', products[*].name))",
+               scope
+             ) == 2.50
+    end
+
+    test "index/match with 2D grid" do
+      scope = %{
+        "headers" => ["Q1", "Q2", "Q3", "Q4"],
+        "data" => [
+          [100, 200, 300, 400],
+          [150, 250, 350, 450]
+        ]
+      }
+
+      assert ExCellerate.eval!(
+               "index(data[0], match('Q3', headers))",
+               scope
+             ) == 300
+    end
+
+    test "index/match returns nil when match fails" do
+      scope = %{
+        "names" => ["Alice", "Bob", "Carol"],
+        "scores" => [90, 85, 92]
+      }
+
+      assert ExCellerate.eval!(
+               "index(scores, match('Dave', names))",
+               scope
+             ) == nil
+    end
+  end
 end

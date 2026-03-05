@@ -70,6 +70,10 @@ defmodule ExCellerate do
   | `or(a, b, ...)` | Returns `true` if any argument is truthy |
   | `lookup(coll, key)` | Looks up `key` in a map or index in a list |
   | `lookup(coll, key, default)` | Same, with a default for missing keys |
+  | `match(value, list)` | Returns the 0-based position of `value` in `list` (exact match) |
+  | `match(value, list, type)` | Approximate match: `1` for ascending (<=), `-1` for descending (>=), `0` for exact |
+  | `index(list, row)` | Returns the element at 0-based position `row` |
+  | `index(array, row, col)` | Returns the element at `row` and `col` in a 2D array |
   | `filter(list, predicates)` | Returns items where predicate is `true` |
   | `table(key1, list1, ...)` | Builds a list of maps from key/list pairs |
   | `take(list, rows)` | Takes the first/last `rows` elements (negative counts from end) |

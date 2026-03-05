@@ -44,6 +44,8 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.IsBlank,
     ExCellerate.Functions.General.IsNull,
     ExCellerate.Functions.General.Lookup,
+    ExCellerate.Functions.General.Index,
+    ExCellerate.Functions.General.Match,
     ExCellerate.Functions.General.Or,
     ExCellerate.Functions.General.Slice,
     ExCellerate.Functions.General.Switch,
