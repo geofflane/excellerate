@@ -16,6 +16,7 @@ defmodule ExCellerate.MixProject do
       package: package(),
       docs: docs(),
       source_url: @source_url,
+      homepage_url: @source_url,
       test_coverage: [
         ignore_modules: [~r/^ExCellerate\.Test\./]
       ],
@@ -39,8 +40,11 @@ defmodule ExCellerate.MixProject do
 
   defp package do
     [
+      name: "excellerate",
       licenses: ["MIT"],
-      links: %{"GitHub" => @source_url}
+      links: %{"GitHub" => @source_url},
+      maintainers: ["Geoff Lane"],
+      files: ~w(lib priv/plts/.gitkeep .formatter.exs mix.exs README.md LICENSE)
     ]
   end
 
@@ -56,7 +60,7 @@ defmodule ExCellerate.MixProject do
     [
       {:nimble_parsec, "~> 1.4"},
       {:benchee, "~> 1.3", only: :dev, runtime: false},
-      {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.34", only: :dev, runtime: false, warn_if_outdated: true},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
