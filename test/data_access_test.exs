@@ -170,4 +170,47 @@ defmodule ExCellerate.DataAccessTest do
       assert ExCellerate.eval!("null ? 'yes' : 'no'") == "no"
     end
   end
+
+  describe "access on parenthesized expressions" do
+    test "dot access on || result picks first non-nil map" do
+      scope = %{
+        "a" => nil,
+        "b" => %{"player_id" => 99}
+      }
+
+      assert ExCellerate.eval!("(a || b).player_id", scope) == 99
+    end
+
+    test "dot access on || result when first operand is non-nil" do
+      scope = %{
+        "a" => %{"player_id" => 42},
+        "b" => %{"player_id" => 99}
+      }
+
+      assert ExCellerate.eval!("(a || b).player_id", scope) == 42
+    end
+
+    test "dot access on || result when both are nil" do
+      scope = %{"a" => nil, "b" => nil}
+      assert ExCellerate.eval!("(a || b).player_id", scope) == nil
+    end
+
+    test "bracket access on parenthesized expression" do
+      scope = %{
+        "a" => nil,
+        "b" => [10, 20, 30]
+      }
+
+      assert ExCellerate.eval!("(a || b)[1]", scope) == 20
+    end
+
+    test "chained dot access on parenthesized expression" do
+      scope = %{
+        "a" => nil,
+        "b" => %{"profile" => %{"name" => "Alice"}}
+      }
+
+      assert ExCellerate.eval!("(a || b).profile.name", scope) == "Alice"
+    end
+  end
 end

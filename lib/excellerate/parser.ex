@@ -100,6 +100,30 @@ defmodule ExCellerate.Parser do
     |> optional(ascii_string([?a..?z, ?A..?Z, ?0..?9, ?_], min: 1))
     |> reduce({Enum, :join, []})
 
+  # Reusable access suffixes: dot, bracket, spread, computed spread, call.
+  # Applied after both identifiers (variables) and parenthesized expressions.
+  access_suffix =
+    choice([
+      # Computed spread: .(expr) — must be tried before plain dot access
+      ignore(string(".("))
+      |> parsec(:expression)
+      |> ignore(string(")"))
+      |> map({__MODULE__, :make_computed_access, []}),
+      ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
+      ignore(string("[*]")) |> replace({:spread}),
+      ignore(string("["))
+      |> parsec(:expression)
+      |> ignore(string("]"))
+      |> map({__MODULE__, :make_bracket_access, []}),
+      ignore(string("("))
+      |> optional(
+        parsec(:expression)
+        |> repeat(ignore(string(",")) |> concat(whitespace) |> parsec(:expression))
+      )
+      |> ignore(string(")"))
+      |> reduce({__MODULE__, :make_call_access, []})
+    ])
+
   # Variables with optional chained access and function calls:
   #   `user.profile.name`  → nested dot access
   #   `list[0]`            → bracket access (index can be any expression)
@@ -107,28 +131,7 @@ defmodule ExCellerate.Parser do
   #   `obj.method(1).val`  → mixed chaining
   variable =
     identifier
-    |> repeat(
-      choice([
-        # Computed spread: .(expr) — must be tried before plain dot access
-        ignore(string(".("))
-        |> parsec(:expression)
-        |> ignore(string(")"))
-        |> map({__MODULE__, :make_computed_access, []}),
-        ignore(string(".")) |> concat(identifier) |> map({__MODULE__, :make_dot_access, []}),
-        ignore(string("[*]")) |> replace({:spread}),
-        ignore(string("["))
-        |> parsec(:expression)
-        |> ignore(string("]"))
-        |> map({__MODULE__, :make_bracket_access, []}),
-        ignore(string("("))
-        |> optional(
-          parsec(:expression)
-          |> repeat(ignore(string(",")) |> concat(whitespace) |> parsec(:expression))
-        )
-        |> ignore(string(")"))
-        |> reduce({__MODULE__, :make_call_access, []})
-      ])
-    )
+    |> repeat(access_suffix)
     |> reduce({__MODULE__, :build_access, []})
 
   # All literal types, tried in order. Keywords before identifiers so
@@ -145,11 +148,18 @@ defmodule ExCellerate.Parser do
 
   # ── Precedence level 12: Primary ───────────────────────────────
   # Literals, variables, and parenthesized sub-expressions.
+  # Parenthesized expressions support access suffixes so that
+  # `(a || b).field` and `(a || b)[0]` work as expected.
 
   primary =
     choice([
       whitespace |> concat(literal) |> concat(whitespace),
-      ignore(string("(")) |> parsec(:expression) |> ignore(string(")")) |> concat(whitespace)
+      ignore(string("("))
+      |> parsec(:expression)
+      |> ignore(string(")"))
+      |> repeat(access_suffix)
+      |> reduce({__MODULE__, :build_paren_access, []})
+      |> concat(whitespace)
     ])
 
   # ── Precedence level 11: Unary prefix ──────────────────────────
@@ -376,6 +386,14 @@ defmodule ExCellerate.Parser do
   def build_access([name | accessors]) do
     initial = {:get_var, name}
     build_access_chain(initial, accessors)
+  end
+
+  # Like build_access, but the first element is an already-parsed expression
+  # (from a parenthesized sub-expression) rather than a variable name.
+  def build_paren_access([expr]), do: expr
+
+  def build_paren_access([expr | accessors]) do
+    build_access_chain(expr, accessors)
   end
 
   # Builds the IR for an access chain, handling [*] spread markers.
