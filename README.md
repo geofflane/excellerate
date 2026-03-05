@@ -51,7 +51,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `replace(s, old, new)`: Replaces all occurrences of `old` with `new`.
 - `find(search, text)` / `find(search, text, start)`: Returns the 0-based position of `search` in `text` (optionally starting from `start`), or -1 if not found.
 - `contains(s, term)`: Returns `true` if `term` exists within `s`.
-- `normalize(s)`: Downcases and replaces spaces with underscores (e.g., `"Foo Bar"` -> `"foo_bar"`).
+- `underscore(s)`: Converts to underscore case — downcases, replaces spaces and slashes with underscores, strips other non-alphanumeric characters (e.g., `"Foo Bar"` -> `"foo_bar"`).
+- `slug(s)`: Converts to a slug — downcases, replaces spaces and slashes with hyphens, strips other non-alphanumeric characters (e.g., `"Foo Bar"` -> `"foo-bar"`).
 
 ### Utility Functions
 
@@ -256,7 +257,7 @@ ExCellerate.eval!("substring(email, 0, 5)", scope)
 # => "alice"
 
 scope = %{"category" => "Office Supplies", "id" => 42}
-ExCellerate.eval!("concat(normalize(category), '_', id)", scope)
+ExCellerate.eval!("concat(underscore(category), '_', id)", scope)
 # => "office_supplies_42"
 ```
 

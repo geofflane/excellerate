@@ -126,11 +126,11 @@ defmodule ExCellerate.IntegrationTest do
       assert ExCellerate.eval!("substring(email, 0, 5)", scope) == "alice"
     end
 
-    test "normalize with concatenation from scope" do
+    test "underscore with concatenation from scope" do
       scope = %{"category" => "Office Supplies", "id" => 42}
 
       assert ExCellerate.eval!(
-               "concat(normalize(category), '_', id)",
+               "concat(underscore(category), '_', id)",
                scope
              ) == "office_supplies_42"
     end

@@ -26,7 +26,6 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Left,
     ExCellerate.Functions.General.Len,
     ExCellerate.Functions.General.Lower,
-    ExCellerate.Functions.General.Normalize,
     ExCellerate.Functions.General.Replace,
     ExCellerate.Functions.General.Right,
     ExCellerate.Functions.General.Substring,
@@ -48,8 +47,10 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Match,
     ExCellerate.Functions.General.Or,
     ExCellerate.Functions.General.Slice,
+    ExCellerate.Functions.General.Slug,
     ExCellerate.Functions.General.Switch,
-    ExCellerate.Functions.General.Take
+    ExCellerate.Functions.General.Take,
+    ExCellerate.Functions.General.Underscore
   ]
 
   # Returns the list of modules for all default functions.

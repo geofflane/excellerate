@@ -207,13 +207,44 @@ defmodule ExCellerate.FunctionsTest do
       assert msg =~ "substring"
     end
 
-    test "calls normalize builtin" do
-      assert ExCellerate.eval!("normalize('Hello World')") == "hello_world"
+    test "calls underscore builtin" do
+      assert ExCellerate.eval!("underscore('Hello World')") == "hello_world"
     end
 
-    test "normalize with non-string returns value unchanged" do
-      assert ExCellerate.eval!("normalize(42)", %{}) == 42
-      assert ExCellerate.eval!("normalize(null)", %{}) == nil
+    test "underscore replaces slashes with underscores" do
+      assert ExCellerate.eval!("underscore('Hello/World')") == "hello_world"
+    end
+
+    test "underscore strips non-alphanumeric characters" do
+      assert ExCellerate.eval!("underscore('Hello! @World#')") == "hello_world"
+    end
+
+    test "underscore with non-string raises" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("underscore(42)")
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("underscore(null)")
+    end
+
+    test "calls slug builtin" do
+      assert ExCellerate.eval!("slug('Hello World')") == "hello-world"
+    end
+
+    test "slug replaces slashes with hyphens" do
+      assert ExCellerate.eval!("slug('Hello/World')") == "hello-world"
+    end
+
+    test "slug strips non-alphanumeric characters" do
+      assert ExCellerate.eval!("slug('Hello! @World#')") == "hello-world"
+    end
+
+    test "slug with non-string raises" do
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("slug(42)")
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} =
+               ExCellerate.eval("slug(null)")
     end
   end
 

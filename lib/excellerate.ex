@@ -53,7 +53,8 @@ defmodule ExCellerate do
   | `replace(s, old, new)` | Replaces all occurrences of `old` with `new` |
   | `find(search, text)` or `find(search, text, start)` | 0-based position of `search` in `text`, optionally from `start` |
   | `contains(s, term)` | Returns `true` if `term` exists within `s` |
-  | `normalize(s)` | Downcases and replaces spaces with underscores |
+  | `underscore(s)` | Downcases, replaces spaces/slashes with underscores, strips special chars |
+  | `slug(s)` | Downcases, replaces spaces/slashes with hyphens, strips special chars |
 
   ### Utility
 
