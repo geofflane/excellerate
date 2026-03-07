@@ -130,6 +130,22 @@ defmodule ExCellerate.LetFilterTableTest do
       assert ExCellerate.eval!("orders[*].(price * tax_rate)", scope) == [10.0, 20.0]
     end
 
+    test "computed spread element field takes precedence over scope variable with same name" do
+      # When a scope variable has the same name as a field inside the spread elements,
+      # the element's field should win (inner scope shadows outer scope).
+      scope = %{
+        "metadata" => "outer-value",
+        "events" => [
+          %{"metadata" => %{"level" => "info"}, "msg" => "hello"},
+          %{"metadata" => %{"level" => "warn"}, "msg" => "uh oh"}
+        ]
+      }
+
+      # Inside events[*].(metadata.level), "metadata" should refer to each event's
+      # metadata field, NOT the outer scope's "metadata" string.
+      assert ExCellerate.eval!("events[*].(metadata.level)", scope) == ["info", "warn"]
+    end
+
     test "let binding visible in computed spread with struct scope" do
       # Structs as scope root — let bindings and struct fields must both
       # be accessible inside computed spread expressions.
