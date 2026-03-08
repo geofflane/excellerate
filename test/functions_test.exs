@@ -4,15 +4,60 @@ defmodule ExCellerate.FunctionsTest do
   alias ExCellerate.Test.DoubleFuncRegistry
   alias ExCellerate.Test.OverrideRegistry
 
-  describe "built-in math functions" do
-    test "calls registered functions" do
+  describe "abs" do
+    test "returns absolute value" do
       assert ExCellerate.eval!("abs(-10)") == 10
-      assert ExCellerate.eval!("round(1.5)") == 2
-      assert ExCellerate.eval!("ceil(1.2)") == 2
-      assert ExCellerate.eval!("floor(1.9)") == 1
+      assert ExCellerate.eval!("abs(5)") == 5
+      assert ExCellerate.eval!("abs(-3.14)") == 3.14
     end
 
-    test "round with digits argument" do
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("abs('hello')")
+
+      assert msg =~ "abs"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "ceil" do
+    test "rounds up to nearest integer" do
+      assert ExCellerate.eval!("ceil(1.2)") == 2
+      assert ExCellerate.eval!("ceil(3.0)") == 3
+      assert ExCellerate.eval!("ceil(-1.7)") == -1
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("ceil('hello')")
+
+      assert msg =~ "ceil"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "floor" do
+    test "rounds down to nearest integer" do
+      assert ExCellerate.eval!("floor(1.9)") == 1
+      assert ExCellerate.eval!("floor(3.0)") == 3
+      assert ExCellerate.eval!("floor(-1.2)") == -2
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("floor('hello')")
+
+      assert msg =~ "floor"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "round" do
+    test "rounds to nearest integer" do
+      assert ExCellerate.eval!("round(1.5)") == 2
+    end
+
+    test "rounds with digits argument" do
       assert ExCellerate.eval!("round(3.14159, 2)") == 3.14
       assert ExCellerate.eval!("round(3.14159, 0)") == 3.0
       assert ExCellerate.eval!("round(3.14159, 4)") == 3.1416
@@ -20,54 +65,46 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("round(2.5, 0)") == 3.0
     end
 
-    test "round with negative digits truncates left of decimal" do
+    test "negative digits truncates left of decimal" do
       assert ExCellerate.eval!("round(1234, -2)") == 1200.0
       assert ExCellerate.eval!("round(1250, -2)") == 1300.0
     end
 
-    test "min is variadic" do
-      assert ExCellerate.eval!("min(5)") == 5
-      assert ExCellerate.eval!("min(3, 1, 2)") == 1
-      assert ExCellerate.eval!("min(10, 20, 5, 15)") == 5
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("round('hello')")
+
+      assert msg =~ "round"
+      assert msg =~ "number"
     end
 
-    test "max is variadic" do
-      assert ExCellerate.eval!("max(5)") == 5
-      assert ExCellerate.eval!("max(3, 1, 2)") == 3
-      assert ExCellerate.eval!("max(10, 20, 5, 15)") == 20
+    test "rejects non-integer digits" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("round(3.14, 1.5)")
+
+      assert msg =~ "round"
+      assert msg =~ "integer"
+    end
+  end
+
+  describe "trunc" do
+    test "truncates toward zero" do
+      assert ExCellerate.eval!("trunc(3.7)") == 3
+      assert ExCellerate.eval!("trunc(-3.7)") == -3
+      assert ExCellerate.eval!("trunc(5)") == 5
     end
 
-    test "calls sqrt builtin" do
-      assert ExCellerate.eval!("sqrt(9)") == 3.0
-      assert ExCellerate.eval!("sqrt(2)") == :math.sqrt(2)
-      assert ExCellerate.eval!("sqrt(0)") == 0.0
-    end
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("trunc('hello')")
 
-    test "sqrt of negative returns error" do
-      assert {:error, _} = ExCellerate.eval("sqrt(-1)")
+      assert msg =~ "trunc"
+      assert msg =~ "number"
     end
+  end
 
-    test "calls log builtin" do
-      assert ExCellerate.eval!("log(8, 2)") == :math.log(8) / :math.log(2)
-      assert ExCellerate.eval!("log(100, 10)") == :math.log(100) / :math.log(10)
-    end
-
-    test "calls ln builtin" do
-      assert ExCellerate.eval!("ln(1)") == 0.0
-      assert_in_delta ExCellerate.eval!("ln(2.718281828)"), 1.0, 0.0001
-    end
-
-    test "calls log10 builtin" do
-      assert ExCellerate.eval!("log10(100)") == 2.0
-      assert ExCellerate.eval!("log10(1000)") == :math.log10(1000)
-    end
-
-    test "calls exp builtin" do
-      assert ExCellerate.eval!("exp(0)") == 1.0
-      assert ExCellerate.eval!("exp(1)") == :math.exp(1)
-    end
-
-    test "calls sign builtin" do
+  describe "sign" do
+    test "returns sign of number" do
       assert ExCellerate.eval!("sign(-42)") == -1
       assert ExCellerate.eval!("sign(0)") == 0
       assert ExCellerate.eval!("sign(42)") == 1
@@ -75,23 +112,169 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("sign(0.001)") == 1
     end
 
-    test "calls trunc builtin" do
-      assert ExCellerate.eval!("trunc(3.7)") == 3
-      assert ExCellerate.eval!("trunc(-3.7)") == -3
-      assert ExCellerate.eval!("trunc(5)") == 5
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("sign('hello')")
+
+      assert msg =~ "sign"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "sqrt" do
+    test "returns square root" do
+      assert ExCellerate.eval!("sqrt(9)") == 3.0
+      assert ExCellerate.eval!("sqrt(2)") == :math.sqrt(2)
+      assert ExCellerate.eval!("sqrt(0)") == 0.0
     end
 
-    test "calls sum builtin" do
+    test "rejects negative number" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("sqrt(-1)")
+
+      assert msg =~ "sqrt"
+      assert msg =~ "non-negative number"
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("sqrt('hello')")
+
+      assert msg =~ "sqrt"
+      assert msg =~ "non-negative number"
+    end
+  end
+
+  describe "exp" do
+    test "returns e raised to power" do
+      assert ExCellerate.eval!("exp(0)") == 1.0
+      assert ExCellerate.eval!("exp(1)") == :math.exp(1)
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("exp('hello')")
+
+      assert msg =~ "exp"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "ln" do
+    test "returns natural logarithm" do
+      assert ExCellerate.eval!("ln(1)") == 0.0
+      assert_in_delta ExCellerate.eval!("ln(2.718281828)"), 1.0, 0.0001
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("ln('hello')")
+
+      assert msg =~ "ln"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "log" do
+    test "returns logarithm in specified base" do
+      assert ExCellerate.eval!("log(8, 2)") == :math.log(8) / :math.log(2)
+      assert ExCellerate.eval!("log(100, 10)") == :math.log(100) / :math.log(10)
+    end
+
+    test "rejects non-numeric value" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("log('hello', 2)")
+
+      assert msg =~ "log"
+      assert msg =~ "number"
+    end
+
+    test "rejects non-numeric base" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("log(8, 'two')")
+
+      assert msg =~ "log"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "log10" do
+    test "returns base-10 logarithm" do
+      assert ExCellerate.eval!("log10(100)") == 2.0
+      assert ExCellerate.eval!("log10(1000)") == :math.log10(1000)
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("log10('hello')")
+
+      assert msg =~ "log10"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "sum" do
+    test "sums values" do
       assert ExCellerate.eval!("sum(1, 2, 3)") == 6
       assert ExCellerate.eval!("sum(10)") == 10
       assert ExCellerate.eval!("sum(1, 2, 3, 4, 5)") == 15
       assert ExCellerate.eval!("sum(a, b, c)", %{"a" => 10, "b" => 20, "c" => 30}) == 60
     end
 
-    test "calls avg builtin" do
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("sum(1, 'two', 3)")
+
+      assert msg =~ "sum"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "avg" do
+    test "returns arithmetic mean" do
       assert ExCellerate.eval!("avg(2, 4, 6)") == 4.0
       assert ExCellerate.eval!("avg(10)") == 10.0
       assert ExCellerate.eval!("avg(1, 2)") == 1.5
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("avg(1, 'two', 3)")
+
+      assert msg =~ "avg"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "min" do
+    test "returns smallest value" do
+      assert ExCellerate.eval!("min(5)") == 5
+      assert ExCellerate.eval!("min(3, 1, 2)") == 1
+      assert ExCellerate.eval!("min(10, 20, 5, 15)") == 5
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("min(1, 'two', 3)")
+
+      assert msg =~ "min"
+      assert msg =~ "number"
+    end
+  end
+
+  describe "max" do
+    test "returns largest value" do
+      assert ExCellerate.eval!("max(5)") == 5
+      assert ExCellerate.eval!("max(3, 1, 2)") == 3
+      assert ExCellerate.eval!("max(10, 20, 5, 15)") == 20
+    end
+
+    test "rejects non-numeric input" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("max(1, 'two', 3)")
+
+      assert msg =~ "max"
+      assert msg =~ "number"
     end
   end
 

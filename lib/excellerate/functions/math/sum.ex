@@ -12,12 +12,21 @@ defmodule ExCellerate.Functions.Math.Sum do
   """
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "sum"
   @impl true
   def arity, do: :any
 
   @impl true
-  def call([list]) when is_list(list), do: Enum.sum(list)
-  def call(args), do: Enum.sum(args)
+  def call([list]) when is_list(list) do
+    Enum.each(list, &ensure_number!(&1, name()))
+    Enum.sum(list)
+  end
+
+  def call(args) do
+    Enum.each(args, &ensure_number!(&1, name()))
+    Enum.sum(args)
+  end
 end

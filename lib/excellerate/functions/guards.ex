@@ -86,6 +86,38 @@ defmodule ExCellerate.Functions.Guards do
   end
 
   @doc """
+  Validates that `value` is a non-negative number (>= 0). Returns `value`
+  on success.
+
+  Raises `ExCellerate.Error` with type `:runtime` if `value` is not a number
+  or is negative. The error message always says "expects a non-negative number"
+  regardless of whether the value was the wrong type or simply negative.
+
+  ## Examples
+
+      iex> ExCellerate.Functions.Guards.ensure_non_negative_number!(0, "sqrt")
+      0
+
+      iex> ExCellerate.Functions.Guards.ensure_non_negative_number!(4.5, "sqrt")
+      4.5
+
+      iex> ExCellerate.Functions.Guards.ensure_non_negative_number!(-1, "sqrt")
+      ** (ExCellerate.Error) Runtime error: 'sqrt' expects a non-negative number, got: -1
+
+      iex> ExCellerate.Functions.Guards.ensure_non_negative_number!("five", "sqrt")
+      ** (ExCellerate.Error) Runtime error: 'sqrt' expects a non-negative number, got: "five"
+  """
+  @spec ensure_non_negative_number!(any(), String.t()) :: number()
+  def ensure_non_negative_number!(value, _func_name) when is_number(value) and value >= 0,
+    do: value
+
+  def ensure_non_negative_number!(value, func_name) do
+    raise ExCellerate.Error,
+      message: "'#{func_name}' expects a non-negative number, got: #{inspect(value)}",
+      type: :runtime
+  end
+
+  @doc """
   Validates that `value` is an integer. Returns `value` on success.
 
   Raises `ExCellerate.Error` with type `:runtime` if `value` is not an integer.

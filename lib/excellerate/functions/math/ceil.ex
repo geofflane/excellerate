@@ -10,10 +10,16 @@ defmodule ExCellerate.Functions.Math.Ceil do
   """
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "ceil"
   @impl true
   def arity, do: 1
+
   @impl true
-  def call([n]), do: ceil(n)
+  def call([n]) do
+    ensure_number!(n, name())
+    ceil(n)
+  end
 end

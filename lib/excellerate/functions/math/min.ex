@@ -12,12 +12,21 @@ defmodule ExCellerate.Functions.Math.Min do
   """
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "min"
   @impl true
   def arity, do: :any
 
   @impl true
-  def call([list]) when is_list(list), do: Enum.min(list)
-  def call(args), do: Enum.min(args)
+  def call([list]) when is_list(list) do
+    Enum.each(list, &ensure_number!(&1, name()))
+    Enum.min(list)
+  end
+
+  def call(args) do
+    Enum.each(args, &ensure_number!(&1, name()))
+    Enum.min(args)
+  end
 end

@@ -10,10 +10,16 @@ defmodule ExCellerate.Functions.Math.Floor do
   """
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "floor"
   @impl true
   def arity, do: 1
+
   @impl true
-  def call([n]), do: floor(n)
+  def call([n]) do
+    ensure_number!(n, name())
+    floor(n)
+  end
 end

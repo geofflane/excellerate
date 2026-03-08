@@ -10,10 +10,16 @@ defmodule ExCellerate.Functions.Math.Abs do
   """
   @behaviour ExCellerate.Function
 
+  import ExCellerate.Functions.Guards
+
   @impl true
   def name, do: "abs"
   @impl true
   def arity, do: 1
+
   @impl true
-  def call([n]), do: abs(n)
+  def call([n]) do
+    ensure_number!(n, name())
+    abs(n)
+  end
 end

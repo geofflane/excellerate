@@ -21,14 +21,7 @@ defmodule ExCellerate.Functions.Math.Sqrt do
 
   @impl true
   def call([n]) do
-    ensure_number!(n, name())
-
-    if n < 0 do
-      raise ExCellerate.Error,
-        message: "#{name()} requires a non-negative number, got #{n}",
-        type: :runtime
-    end
-
+    ensure_non_negative_number!(n, name())
     :math.sqrt(n)
   end
 end
