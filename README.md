@@ -71,6 +71,8 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
   - Returns `default` if the value is not found.
 - `match(lookup_value, list)` / `match(lookup_value, list, match_type)`: Searches for a value in a list and returns its 0-based position. `match_type` controls matching: `0` (default) for exact match, `1` for the largest value &lt;= `lookup_value` (list must be ascending), `-1` for the smallest value &gt;= `lookup_value` (list must be descending). Returns `null` when no match is found.
 - `index(list, row)` / `index(list, row, col)`: Returns a value from a list or 2D array by position (0-based). Negative indices count from the end. For 2D arrays (list of lists), pass both `row` and `col`. Returns `null` for out-of-bounds or `null` positions.
+- `sort(a, b, ...)` / `sort(list)`: Sorts values in ascending order.
+- `unique(a, b, ...)` / `unique(list)`: Returns unique values, preserving the order of first occurrence.
 - `filter(list, predicates)`: Returns items where the corresponding predicate is `true`.
 - `table(key1, list1, key2, list2, ...)`: Builds a list of maps from alternating key/list pairs.
 - `take(list, rows)` / `take(list, rows, cols)`: Extracts rows, columns, or both from a list or 2D array. Positive counts take from the beginning, negative from the end. Pass `null` to skip a dimension (e.g., `take(data, null, 2)` for columns only).

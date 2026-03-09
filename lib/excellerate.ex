@@ -75,6 +75,8 @@ defmodule ExCellerate do
   | `match(value, list, type)` | Approximate match: `1` for ascending (<=), `-1` for descending (>=), `0` for exact |
   | `index(list, row)` | Returns the element at 0-based position `row` (negative indices count from the end) |
   | `index(array, row, col)` | Returns the element at `row` and `col` in a 2D array |
+  | `sort(a, b, ...)` or `sort(list)` | Sorts values in ascending order |
+  | `unique(a, b, ...)` or `unique(list)` | Returns unique values, preserving order of first occurrence |
   | `filter(list, predicates)` | Returns items where predicate is `true` |
   | `table(key1, list1, ...)` | Builds a list of maps from key/list pairs |
   | `take(list, rows)` | Takes the first/last `rows` elements (negative counts from end) |

@@ -1327,4 +1327,94 @@ defmodule ExCellerate.FunctionsTest do
              ) == nil
     end
   end
+
+  describe "sort" do
+    test "sorts a list of numbers" do
+      assert ExCellerate.eval!("sort(list)", %{"list" => [3, 1, 2]}) == [1, 2, 3]
+    end
+
+    test "sorts variadic numeric arguments" do
+      assert ExCellerate.eval!("sort(3, 1, 2)") == [1, 2, 3]
+    end
+
+    test "sorts a list of strings" do
+      assert ExCellerate.eval!("sort(list)", %{"list" => ["banana", "apple", "cherry"]}) ==
+               ["apple", "banana", "cherry"]
+    end
+
+    test "sorts variadic string arguments" do
+      assert ExCellerate.eval!("sort('banana', 'apple', 'cherry')") ==
+               ["apple", "banana", "cherry"]
+    end
+
+    test "sorts a single element" do
+      assert ExCellerate.eval!("sort(42)") == [42]
+    end
+
+    test "sorts an already-sorted list" do
+      assert ExCellerate.eval!("sort(list)", %{"list" => [1, 2, 3]}) == [1, 2, 3]
+    end
+
+    test "works with spread results" do
+      scope = %{
+        "orders" => [
+          %{"price" => 25},
+          %{"price" => 10},
+          %{"price" => 15}
+        ]
+      }
+
+      assert ExCellerate.eval!("sort(orders[*].price)", scope) == [10, 15, 25]
+    end
+
+    test "sorts mixed types using Erlang term ordering" do
+      assert ExCellerate.eval!("sort(3, 'apple', 1)") == [1, 3, "apple"]
+    end
+  end
+
+  describe "unique" do
+    test "removes duplicates from a list" do
+      assert ExCellerate.eval!("unique(list)", %{"list" => [1, 2, 2, 3, 3, 3]}) == [1, 2, 3]
+    end
+
+    test "removes duplicates from variadic arguments" do
+      assert ExCellerate.eval!("unique(1, 2, 2, 3, 3, 3)") == [1, 2, 3]
+    end
+
+    test "removes duplicates from strings" do
+      assert ExCellerate.eval!("unique(list)", %{"list" => ["a", "b", "a", "c", "b"]}) ==
+               ["a", "b", "c"]
+    end
+
+    test "removes duplicates from variadic string arguments" do
+      assert ExCellerate.eval!("unique('a', 'b', 'a', 'c', 'b')") == ["a", "b", "c"]
+    end
+
+    test "preserves order of first occurrence" do
+      assert ExCellerate.eval!("unique(list)", %{"list" => [3, 1, 2, 1, 3]}) == [3, 1, 2]
+    end
+
+    test "single element returns list" do
+      assert ExCellerate.eval!("unique(42)") == [42]
+    end
+
+    test "works with spread results" do
+      scope = %{
+        "orders" => [
+          %{"status" => "shipped"},
+          %{"status" => "pending"},
+          %{"status" => "shipped"},
+          %{"status" => "delivered"},
+          %{"status" => "pending"}
+        ]
+      }
+
+      assert ExCellerate.eval!("unique(orders[*].status)", scope) ==
+               ["shipped", "pending", "delivered"]
+    end
+
+    test "already-unique list is unchanged" do
+      assert ExCellerate.eval!("unique(list)", %{"list" => [1, 2, 3]}) == [1, 2, 3]
+    end
+  end
 end

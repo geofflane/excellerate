@@ -48,9 +48,11 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Or,
     ExCellerate.Functions.General.Slice,
     ExCellerate.Functions.General.Slug,
+    ExCellerate.Functions.General.Sort,
     ExCellerate.Functions.General.Switch,
     ExCellerate.Functions.General.Take,
-    ExCellerate.Functions.General.Underscore
+    ExCellerate.Functions.General.Underscore,
+    ExCellerate.Functions.General.Unique
   ]
 
   # Returns the list of modules for all default functions.
