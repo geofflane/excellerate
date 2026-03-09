@@ -54,6 +54,32 @@ defmodule ExCellerate.ParserTest do
     test "whitespace in function args" do
       assert ExCellerate.eval!("abs(  -10  )") == 10
     end
+
+    test "whitespace before parenthesized sub-expression" do
+      assert ExCellerate.eval!(" (1 + 2) * 3") == 9
+      assert ExCellerate.eval!("\n(1 + 2) * 3") == 9
+    end
+
+    test "newline before parenthesized sub-expression inside computed spread" do
+      scope = %{
+        "events" => [
+          %{"type" => "penalty_against_defence", "player_id" => "p1"},
+          %{"type" => "penalty_for_defence", "player_id" => nil},
+          %{"type" => "goal", "player_id" => "p2"}
+        ]
+      }
+
+      # Multi-line expression matching the bug report pattern:
+      # YAML folded block scalar with newlines inside computed spread
+      expr =
+        "filter(events, events[*].(\n" <>
+          "  (type == \"penalty_against_defence\" || type == \"penalty_for_defence\")\n" <>
+          "  && player_id != null))"
+
+      assert ExCellerate.eval!(expr, scope) == [
+               %{"type" => "penalty_against_defence", "player_id" => "p1"}
+             ]
+    end
   end
 
   describe "string edge cases" do

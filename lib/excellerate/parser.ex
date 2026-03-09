@@ -154,7 +154,8 @@ defmodule ExCellerate.Parser do
   primary =
     choice([
       whitespace |> concat(literal) |> concat(whitespace),
-      ignore(string("("))
+      whitespace
+      |> ignore(string("("))
       |> parsec(:expression)
       |> ignore(string(")"))
       |> repeat(access_suffix)
