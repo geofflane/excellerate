@@ -907,8 +907,7 @@ defmodule ExCellerate.FunctionsTest do
   describe "list_functions/0" do
     test "returns a list of modules" do
       functions = DoubleFuncRegistry.list_functions()
-      assert is_list(functions)
-      assert length(functions) > 0
+      assert [_ | _] = functions
 
       Enum.each(functions, fn mod ->
         assert is_atom(mod)

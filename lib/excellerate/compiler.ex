@@ -31,6 +31,8 @@ defmodule ExCellerate.Compiler do
 
   defp invoke_module(module, args) do
     # TODO: Is there a way to do this once instead of every call?
+    # Defensive check — modules are resolved at compile time via the registry,
+    # so this guard should always pass. Kept as a safety net for direct callers.
     if Code.ensure_loaded?(module) and function_exported?(module, :call, 1) do
       validate_module_arity!(module, args)
 

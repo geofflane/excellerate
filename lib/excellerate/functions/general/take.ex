@@ -36,9 +36,10 @@ defmodule ExCellerate.Functions.General.Take do
   end
 
   defp take_rows(list, nil), do: list
-  defp take_rows(list, 0), do: if(is_2d?(list), do: [], else: [])
+  defp take_rows(_list, 0), do: []
 
-  defp take_rows(list, n) when is_integer(n) do
+  defp take_rows(list, n) do
+    ensure_integer!(n, name())
     len = length(list)
     count = min(abs(n), len)
 
@@ -49,13 +50,11 @@ defmodule ExCellerate.Functions.General.Take do
     end
   end
 
-  defp take_rows(_list, other) do
-    ensure_integer!(other, name())
-  end
-
   defp take_cols(list, nil), do: list
 
-  defp take_cols(list, n) when is_integer(n) do
+  defp take_cols(list, n) do
+    ensure_integer!(n, name())
+
     Enum.map(list, fn row ->
       ensure_list!(row, name())
       width = length(row)
@@ -68,11 +67,4 @@ defmodule ExCellerate.Functions.General.Take do
       end
     end)
   end
-
-  defp take_cols(_list, other) do
-    ensure_integer!(other, name())
-  end
-
-  defp is_2d?([first | _]) when is_list(first), do: true
-  defp is_2d?(_), do: false
 end
