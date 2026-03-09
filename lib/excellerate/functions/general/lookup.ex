@@ -5,10 +5,14 @@ defmodule ExCellerate.Functions.General.Lookup do
   An optional third argument provides a default value to return when the
   key or index is not found. Without a default, returns `null`.
 
+  For lists, negative indices count from the end (e.g., `-1` is the last
+  element), the same way they work in Elixir.
+
   ## Examples
 
       lookup(user, 'name')              → 'Alice' (when user.name is 'Alice')
       lookup(items, 0)                  → 'first' (first element of list)
+      lookup(items, -1)                 → 'last'  (last element of list)
       lookup(user, 'role', 'guest')     → 'guest' (when 'role' key is missing)
       lookup(items, 99, 'out of range') → 'out of range'
   """

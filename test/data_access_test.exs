@@ -15,6 +15,7 @@ defmodule ExCellerate.DataAccessTest do
 
     test "accesses list values via bracket notation" do
       assert ExCellerate.eval!("list[1]", %{"list" => [1, 2, 3]}) == 2
+      assert ExCellerate.eval!("list[-1]", %{"list" => [1, 2, 3]}) == 3
       assert ExCellerate.eval!("map.list[0].v", %{"map" => %{"list" => [%{"v" => 2}]}}) == 2
     end
 

@@ -7,7 +7,7 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - **Blazing Fast**: Compiles expressions to native Elixir code and caches the results using ETS for near-instant repeated evaluations.
 - **Robust Error System**: Detailed error reporting for Parsing, Compilation, and Runtime issues via `ExCellerate.Error`.
 - **Validation Support**: Built-in `validate/1` to check syntax and function existence without execution.
-- **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`), lists (`data[0]`), structs, and column spreads (`orders[*].price`).
+- **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`), lists (`data[0]`, `data[-1]`), structs, and column spreads (`orders[*].price`).
 
 ## Built-in Functions
 
@@ -67,10 +67,10 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `or(a, b, ...)`: Returns `true` if any argument is truthy.
 - `lookup(collection, key, default \\ nil)`:
   - For maps: Looks up `key` in the map.
-  - For lists: Returns the element at the integer `key` (index).
+  - For lists: Returns the element at the integer `key` (index). Negative indices count from the end.
   - Returns `default` if the value is not found.
 - `match(lookup_value, list)` / `match(lookup_value, list, match_type)`: Searches for a value in a list and returns its 0-based position. `match_type` controls matching: `0` (default) for exact match, `1` for the largest value &lt;= `lookup_value` (list must be ascending), `-1` for the smallest value &gt;= `lookup_value` (list must be descending). Returns `null` when no match is found.
-- `index(list, row)` / `index(list, row, col)`: Returns a value from a list or 2D array by position (0-based). For 2D arrays (list of lists), pass both `row` and `col`. Returns `null` for out-of-bounds or `null` positions.
+- `index(list, row)` / `index(list, row, col)`: Returns a value from a list or 2D array by position (0-based). Negative indices count from the end. For 2D arrays (list of lists), pass both `row` and `col`. Returns `null` for out-of-bounds or `null` positions.
 - `filter(list, predicates)`: Returns items where the corresponding predicate is `true`.
 - `table(key1, list1, key2, list2, ...)`: Builds a list of maps from alternating key/list pairs.
 - `take(list, rows)` / `take(list, rows, cols)`: Extracts rows, columns, or both from a list or 2D array. Positive counts take from the beginning, negative from the end. Pass `null` to skip a dimension (e.g., `take(data, null, 2)` for columns only).
@@ -175,6 +175,18 @@ ExCellerate.eval!("order.items[0].price * order.items[0].qty", scope)
 
 ExCellerate.eval!("order.items[1].name", scope)
 # => "Gadget"
+```
+
+Negative indices count from the end of the list, the same way they work in Elixir:
+
+```elixir
+scope = %{"items" => [10, 20, 30, 40, 50]}
+
+ExCellerate.eval!("items[-1]", scope)
+# => 50
+
+ExCellerate.eval!("items[-2]", scope)
+# => 40
 ```
 
 ### Nil Propagation

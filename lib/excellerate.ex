@@ -12,7 +12,7 @@ defmodule ExCellerate do
   - **Logical**: `&&`, `||`, `not`
   - **Bitwise**: `&`, `|`, `|^` (xor), `<<`, `>>`, `~` (bnot)
   - **Ternary**: `condition ? true_val : false_val`
-  - **Data access**: `user.profile.name`, `list[0]`, `list[*].field` (spread)
+  - **Data access**: `user.profile.name`, `list[0]`, `list[-1]`, `list[*].field` (spread)
 
   ## Built-in Functions
 
@@ -69,11 +69,11 @@ defmodule ExCellerate do
   | `switch(expr, c1, v1, ..., default)` | Multi-way value matching |
   | `and(a, b, ...)` | Returns `true` if all arguments are truthy |
   | `or(a, b, ...)` | Returns `true` if any argument is truthy |
-  | `lookup(coll, key)` | Looks up `key` in a map or index in a list |
+  | `lookup(coll, key)` | Looks up `key` in a map or index in a list (negative indices count from the end) |
   | `lookup(coll, key, default)` | Same, with a default for missing keys |
   | `match(value, list)` | Returns the 0-based position of `value` in `list` (exact match) |
   | `match(value, list, type)` | Approximate match: `1` for ascending (<=), `-1` for descending (>=), `0` for exact |
-  | `index(list, row)` | Returns the element at 0-based position `row` |
+  | `index(list, row)` | Returns the element at 0-based position `row` (negative indices count from the end) |
   | `index(array, row, col)` | Returns the element at `row` and `col` in a 2D array |
   | `filter(list, predicates)` | Returns items where predicate is `true` |
   | `table(key1, list1, ...)` | Builds a list of maps from key/list pairs |
@@ -124,6 +124,15 @@ defmodule ExCellerate do
 
       ExCellerate.eval!("list[99]", %{"list" => [1, 2, 3]})
       # => nil  (index out of bounds)
+
+  Negative indices count from the end of the list, the same way they work
+  in Elixir:
+
+      ExCellerate.eval!("items[-1]", %{"items" => [1, 2, 3]})
+      # => 3  (last element)
+
+      ExCellerate.eval!("items[-2]", %{"items" => [1, 2, 3]})
+      # => 2  (second to last)
 
   Use `ifnull/2`, `coalesce/2+`, or a ternary to provide defaults:
 

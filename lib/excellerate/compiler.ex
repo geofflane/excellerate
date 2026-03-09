@@ -427,6 +427,7 @@ defmodule ExCellerate.Compiler do
 
   # Called from generated AST to access a field/index on a spread item.
   # Handles maps (string and atom keys), structs, and list indexing.
+  # List indexing uses Enum.at/2, so negative indices count from the end.
   @doc false
   def spread_access(target, key) when is_map(target) and is_binary(key) do
     case Map.fetch(target, key) do

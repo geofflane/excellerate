@@ -502,6 +502,11 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("lookup(list, 10, 'oob')", %{"list" => ["a"]}) == "oob"
     end
 
+    test "lookup with negative index returns from end of list" do
+      assert ExCellerate.eval!("lookup(list, -1)", %{"list" => [10, 20, 30]}) == 30
+      assert ExCellerate.eval!("lookup(list, -2)", %{"list" => [10, 20, 30]}) == 20
+    end
+
     test "lookup with non-map/list and default returns default" do
       assert ExCellerate.eval!("lookup(val, 'k', 'fallback')", %{"val" => 42}) == "fallback"
     end
@@ -1205,9 +1210,10 @@ defmodule ExCellerate.FunctionsTest do
       assert ExCellerate.eval!("index(items, 5)", scope) == nil
     end
 
-    test "returns nil for negative index" do
+    test "negative index counts from end of list" do
       scope = %{"items" => [10, 20, 30]}
-      assert ExCellerate.eval!("index(items, -1)", scope) == nil
+      assert ExCellerate.eval!("index(items, -1)", scope) == 30
+      assert ExCellerate.eval!("index(items, -2)", scope) == 20
     end
 
     test "works with string lists" do
@@ -1237,6 +1243,13 @@ defmodule ExCellerate.FunctionsTest do
     test "returns nil for out-of-bounds column in 2D array" do
       scope = %{"grid" => [[1, 2], [3, 4]]}
       assert ExCellerate.eval!("index(grid, 0, 5)", scope) == nil
+    end
+
+    test "negative indices in 2D array count from end" do
+      scope = %{"grid" => [[1, 2, 3], [4, 5, 6], [7, 8, 9]]}
+      assert ExCellerate.eval!("index(grid, -1, 0)", scope) == 7
+      assert ExCellerate.eval!("index(grid, 0, -1)", scope) == 3
+      assert ExCellerate.eval!("index(grid, -1, -1)", scope) == 9
     end
 
     test "works with numeric 2D arrays" do
