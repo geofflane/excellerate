@@ -7,9 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-11
+
 ### Added
 
 - Date and time functions: `date`, `datetime`, `today`, `now`, `year`, `month`, `day`, `hour`, `minute`, `second`, `weekday`, `datedif`, `dateadd`
+- Singular and plural unit names accepted by `datedif` and `dateadd` (e.g., `"day"` or `"days"`)
 - Guard helpers `ensure_date_or_datetime!/2` and `ensure_date_unit!/2` for runtime type validation of date/time values
 
 ### Fixed
@@ -51,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dialyzer and Credo compliance
 - Security documentation for expression evaluation
 
-[Unreleased]: https://github.com/geofflane/excellerate/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/geofflane/excellerate/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/geofflane/excellerate/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/geofflane/excellerate/compare/0.1.0...0.2.0
 [0.1.0]: https://github.com/geofflane/excellerate/releases/tag/0.1.0
