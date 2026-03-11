@@ -1,5 +1,9 @@
 # ExCellerate
 
+[![Hex.pm](https://img.shields.io/hexpm/v/excellerate.svg)](https://hex.pm/packages/excellerate)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/excellerate)
+[![CI](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml/badge.svg)](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml)
+
 ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
 
 ## Features
@@ -757,7 +761,7 @@ We think that this is a valid analysis of the threat, but we welcome feedback on
 
 ## Documentation
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc) and published on [HexDocs](https://hexdocs.pm). Once published, the docs can be found at [https://hexdocs.pm/excellerate](https://hexdocs.pm/excellerate).
+Full documentation is available on [HexDocs](https://hexdocs.pm/excellerate).
 
 ## License
 
