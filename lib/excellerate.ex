@@ -103,8 +103,9 @@ defmodule ExCellerate do
   | `datedif(date1, date2, unit)` | Signed difference (`date2 − date1`) as an integer in the given unit |
   | `dateadd(date, amount, unit)` | Shifts a date by N units; returns the same type |
 
-  Units for `datedif` and `dateadd`: `"years"`, `"months"`, `"days"`,
-  `"hours"`, `"minutes"`, `"seconds"`, `"milliseconds"`.
+  Units for `datedif` and `dateadd` (singular or plural): `"year(s)"`,
+  `"month(s)"`, `"day(s)"`, `"hour(s)"`, `"minute(s)"`, `"second(s)"`,
+  `"millisecond(s)"`.
 
   All date functions accept `Date`, `NaiveDateTime`, and `DateTime` structs.
 

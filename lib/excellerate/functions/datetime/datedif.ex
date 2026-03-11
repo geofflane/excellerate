@@ -42,7 +42,7 @@ defmodule ExCellerate.Functions.DateTime.Datedif do
   def call([date1, date2, unit]) do
     ensure_date_or_datetime!(date1, name())
     ensure_date_or_datetime!(date2, name())
-    ensure_date_unit!(unit, name())
+    unit = ensure_date_unit!(unit, name())
 
     diff(date1, date2, unit)
   end

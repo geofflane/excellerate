@@ -275,13 +275,25 @@ defmodule ExCellerate.Functions.Guards do
   end
 
   @valid_date_units ~w(years months days hours minutes seconds milliseconds)
+  @singular_to_plural %{
+    "year" => "years",
+    "month" => "months",
+    "day" => "days",
+    "hour" => "hours",
+    "minute" => "minutes",
+    "second" => "seconds",
+    "millisecond" => "milliseconds"
+  }
 
   @doc """
-  Validates that `value` is a recognized date unit string. Returns `value`
-  on success.
+  Validates that `value` is a recognized date unit string and normalizes
+  it to the plural form. Returns the plural unit string on success.
 
-  Valid units are: `"years"`, `"months"`, `"days"`, `"hours"`, `"minutes"`,
-  `"seconds"`, `"milliseconds"`.
+  Both singular and plural forms are accepted: `"day"` and `"days"` both
+  return `"days"`.
+
+  Valid units: `"year(s)"`, `"month(s)"`, `"day(s)"`, `"hour(s)"`,
+  `"minute(s)"`, `"second(s)"`, `"millisecond(s)"`.
 
   Raises `ExCellerate.Error` with type `:runtime` if `value` is not a valid
   date unit.
@@ -291,16 +303,22 @@ defmodule ExCellerate.Functions.Guards do
       iex> ExCellerate.Functions.Guards.ensure_date_unit!("days", "datedif")
       "days"
 
+      iex> ExCellerate.Functions.Guards.ensure_date_unit!("day", "datedif")
+      "days"
+
       iex> ExCellerate.Functions.Guards.ensure_date_unit!("weeks", "datedif")
-      ** (ExCellerate.Error) Runtime error: 'datedif' expects a valid unit (years, months, days, hours, minutes, seconds, milliseconds), got: "weeks"
+      ** (ExCellerate.Error) Runtime error: 'datedif' expects a valid unit (year/years, month/months, day/days, hour/hours, minute/minutes, second/seconds, millisecond/milliseconds), got: "weeks"
   """
   @spec ensure_date_unit!(any(), String.t()) :: String.t()
   def ensure_date_unit!(value, _func_name) when value in @valid_date_units, do: value
 
+  def ensure_date_unit!(value, _func_name) when is_map_key(@singular_to_plural, value),
+    do: @singular_to_plural[value]
+
   def ensure_date_unit!(value, func_name) do
     raise ExCellerate.Error,
       message:
-        "'#{func_name}' expects a valid unit (years, months, days, hours, minutes, seconds, milliseconds), got: #{inspect(value)}",
+        "'#{func_name}' expects a valid unit (year/years, month/months, day/days, hour/hours, minute/minutes, second/seconds, millisecond/milliseconds), got: #{inspect(value)}",
       type: :runtime
   end
 

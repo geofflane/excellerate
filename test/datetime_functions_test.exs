@@ -453,6 +453,31 @@ defmodule ExCellerate.DateTimeFunctionsTest do
       assert ExCellerate.eval!("datedif(d1, d2, 'hours')", scope) == 60
     end
 
+    test "accepts singular unit names" do
+      scope = %{"d1" => ~D[2024-01-01], "d2" => ~D[2024-03-01]}
+      assert ExCellerate.eval!("datedif(d1, d2, 'day')", scope) == 60
+      assert ExCellerate.eval!("datedif(d1, d2, 'hour')", scope) == 1440
+      assert ExCellerate.eval!("datedif(d1, d2, 'minute')", scope) == 86_400
+      assert ExCellerate.eval!("datedif(d1, d2, 'second')", scope) == 5_184_000
+    end
+
+    test "accepts singular month and year units" do
+      scope = %{"d1" => ~D[2024-01-15], "d2" => ~D[2024-04-15]}
+      assert ExCellerate.eval!("datedif(d1, d2, 'month')", scope) == 3
+
+      scope = %{"d1" => ~D[2020-06-15], "d2" => ~D[2024-06-15]}
+      assert ExCellerate.eval!("datedif(d1, d2, 'year')", scope) == 4
+    end
+
+    test "accepts singular millisecond unit" do
+      scope = %{
+        "d1" => ~N[2024-01-01 00:00:00.000],
+        "d2" => ~N[2024-01-01 00:00:01.500]
+      }
+
+      assert ExCellerate.eval!("datedif(d1, d2, 'millisecond')", scope) == 1500
+    end
+
     test "rejects non-date arguments" do
       assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
                ExCellerate.eval("datedif(42, 100, 'days')")
@@ -598,6 +623,27 @@ defmodule ExCellerate.DateTimeFunctionsTest do
       assert ExCellerate.eval!("dateadd(d, 0, 'days')", scope) == ~D[2024-01-15]
     end
 
+    test "accepts singular unit names" do
+      scope = %{"d" => ~D[2024-01-15]}
+      assert ExCellerate.eval!("dateadd(d, 10, 'day')", scope) == ~D[2024-01-25]
+      assert ExCellerate.eval!("dateadd(d, 3, 'month')", scope) == ~D[2024-04-15]
+      assert ExCellerate.eval!("dateadd(d, 2, 'year')", scope) == ~D[2026-01-15]
+    end
+
+    test "accepts singular sub-day unit names" do
+      scope = %{"d" => ~N[2024-01-15 10:00:00]}
+      assert ExCellerate.eval!("dateadd(d, 3, 'hour')", scope) == ~N[2024-01-15 13:00:00]
+      assert ExCellerate.eval!("dateadd(d, 90, 'minute')", scope) == ~N[2024-01-15 11:30:00]
+      assert ExCellerate.eval!("dateadd(d, 3661, 'second')", scope) == ~N[2024-01-15 11:01:01]
+    end
+
+    test "accepts singular millisecond unit" do
+      scope = %{"d" => ~N[2024-01-15 10:00:00.000]}
+
+      assert ExCellerate.eval!("dateadd(d, 1500, 'millisecond')", scope) ==
+               ~N[2024-01-15 10:00:01.500]
+    end
+
     test "rejects non-date first argument" do
       assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
                ExCellerate.eval("dateadd(42, 5, 'days')")
@@ -662,9 +708,23 @@ defmodule ExCellerate.DateTimeFunctionsTest do
       end
     end
 
-    test "ensure_date_unit! accepts valid units" do
+    test "ensure_date_unit! accepts plural units" do
       for unit <- ~w(years months days hours minutes seconds milliseconds) do
         assert ExCellerate.Functions.Guards.ensure_date_unit!(unit, "test") == unit
+      end
+    end
+
+    test "ensure_date_unit! accepts singular units and normalizes to plural" do
+      for {singular, plural} <- [
+            {"year", "years"},
+            {"month", "months"},
+            {"day", "days"},
+            {"hour", "hours"},
+            {"minute", "minutes"},
+            {"second", "seconds"},
+            {"millisecond", "milliseconds"}
+          ] do
+        assert ExCellerate.Functions.Guards.ensure_date_unit!(singular, "test") == plural
       end
     end
 

@@ -105,8 +105,10 @@ Date and time functions operate on native Elixir `Date`, `NaiveDateTime`, and `D
 
 #### Arithmetic
 
-- `datedif(date1, date2, unit)`: Returns the signed difference (`date2 − date1`) as an integer in the given unit. The result is negative when `date1 > date2`; use `abs()` to get an unsigned value. Valid units: `"years"`, `"months"`, `"days"`, `"hours"`, `"minutes"`, `"seconds"`, `"milliseconds"`.
+- `datedif(date1, date2, unit)`: Returns the signed difference (`date2 − date1`) as an integer in the given unit. The result is negative when `date1 > date2`; use `abs()` to get an unsigned value.
 - `dateadd(date, amount, unit)`: Shifts a date by the given integer amount and unit. Returns the same type as the input (adding sub-day units to a `Date` promotes it to a `NaiveDateTime`). End-of-month clamping is applied for `"months"` and `"years"` (e.g., Jan 31 + 1 month = Feb 28 or 29).
+
+Both `datedif` and `dateadd` accept singular or plural unit names: `"day"` or `"days"`, `"month"` or `"months"`, etc. Valid units: `year(s)`, `month(s)`, `day(s)`, `hour(s)`, `minute(s)`, `second(s)`, `millisecond(s)`.
 
 ### Special Forms
 

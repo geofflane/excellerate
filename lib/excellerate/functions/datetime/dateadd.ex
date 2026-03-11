@@ -33,7 +33,7 @@ defmodule ExCellerate.Functions.DateTime.Dateadd do
   def call([date, amount, unit]) do
     ensure_date_or_datetime!(date, name())
     ensure_integer!(amount, name())
-    ensure_date_unit!(unit, name())
+    unit = ensure_date_unit!(unit, name())
 
     add(date, amount, unit)
   end
