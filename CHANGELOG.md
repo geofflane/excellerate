@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Date and time functions: `date`, `datetime`, `today`, `now`, `year`, `month`, `day`, `hour`, `minute`, `second`, `weekday`, `datedif`, `dateadd`
+- Guard helpers `ensure_date_or_datetime!/2` and `ensure_date_unit!/2` for runtime type validation of date/time values
+
 ### Fixed
 
 - Ensure linebreaks work around column expressions

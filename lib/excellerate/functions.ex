@@ -52,7 +52,21 @@ defmodule ExCellerate.Functions do
     ExCellerate.Functions.General.Switch,
     ExCellerate.Functions.General.Take,
     ExCellerate.Functions.General.Underscore,
-    ExCellerate.Functions.General.Unique
+    ExCellerate.Functions.General.Unique,
+    # DateTime
+    ExCellerate.Functions.DateTime.Date,
+    ExCellerate.Functions.DateTime.DateTime,
+    ExCellerate.Functions.DateTime.Today,
+    ExCellerate.Functions.DateTime.Now,
+    ExCellerate.Functions.DateTime.Year,
+    ExCellerate.Functions.DateTime.Month,
+    ExCellerate.Functions.DateTime.Day,
+    ExCellerate.Functions.DateTime.Hour,
+    ExCellerate.Functions.DateTime.Minute,
+    ExCellerate.Functions.DateTime.Second,
+    ExCellerate.Functions.DateTime.Weekday,
+    ExCellerate.Functions.DateTime.Datedif,
+    ExCellerate.Functions.DateTime.Dateadd
   ]
 
   # Returns the list of modules for all default functions.

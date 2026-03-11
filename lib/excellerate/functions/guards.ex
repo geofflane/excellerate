@@ -245,6 +245,66 @@ defmodule ExCellerate.Functions.Guards do
   end
 
   @doc """
+  Validates that `value` is a date or datetime struct (`Date`, `NaiveDateTime`,
+  or `DateTime`). Returns `value` on success.
+
+  Raises `ExCellerate.Error` with type `:runtime` if `value` is not one of
+  the supported date/time struct types.
+
+  ## Examples
+
+      iex> ExCellerate.Functions.Guards.ensure_date_or_datetime!(~D[2024-01-15], "year")
+      ~D[2024-01-15]
+
+      iex> ExCellerate.Functions.Guards.ensure_date_or_datetime!(~N[2024-01-15 13:30:00], "year")
+      ~N[2024-01-15 13:30:00]
+
+      iex> ExCellerate.Functions.Guards.ensure_date_or_datetime!("2024-01-15", "year")
+      ** (ExCellerate.Error) Runtime error: 'year' expects a Date, NaiveDateTime, or DateTime, got: "2024-01-15"
+  """
+  @spec ensure_date_or_datetime!(any(), String.t()) :: Date.t() | NaiveDateTime.t() | DateTime.t()
+  def ensure_date_or_datetime!(%Date{} = value, _func_name), do: value
+  def ensure_date_or_datetime!(%NaiveDateTime{} = value, _func_name), do: value
+  def ensure_date_or_datetime!(%DateTime{} = value, _func_name), do: value
+
+  def ensure_date_or_datetime!(value, func_name) do
+    raise ExCellerate.Error,
+      message:
+        "'#{func_name}' expects a Date, NaiveDateTime, or DateTime, got: #{inspect(value)}",
+      type: :runtime
+  end
+
+  @valid_date_units ~w(years months days hours minutes seconds milliseconds)
+
+  @doc """
+  Validates that `value` is a recognized date unit string. Returns `value`
+  on success.
+
+  Valid units are: `"years"`, `"months"`, `"days"`, `"hours"`, `"minutes"`,
+  `"seconds"`, `"milliseconds"`.
+
+  Raises `ExCellerate.Error` with type `:runtime` if `value` is not a valid
+  date unit.
+
+  ## Examples
+
+      iex> ExCellerate.Functions.Guards.ensure_date_unit!("days", "datedif")
+      "days"
+
+      iex> ExCellerate.Functions.Guards.ensure_date_unit!("weeks", "datedif")
+      ** (ExCellerate.Error) Runtime error: 'datedif' expects a valid unit (years, months, days, hours, minutes, seconds, milliseconds), got: "weeks"
+  """
+  @spec ensure_date_unit!(any(), String.t()) :: String.t()
+  def ensure_date_unit!(value, _func_name) when value in @valid_date_units, do: value
+
+  def ensure_date_unit!(value, func_name) do
+    raise ExCellerate.Error,
+      message:
+        "'#{func_name}' expects a valid unit (years, months, days, hours, minutes, seconds, milliseconds), got: #{inspect(value)}",
+      type: :runtime
+  end
+
+  @doc """
   Validates that all lists in a collection have the same length. Returns `:ok`
   on success.
 

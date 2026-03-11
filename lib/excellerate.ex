@@ -84,6 +84,30 @@ defmodule ExCellerate do
   | `slice(list, start)` | Returns elements from `start` index to end (negative counts from end) |
   | `slice(list, start, len)` | Returns `len` elements starting at `start` |
 
+  ### Date & Time
+
+  | Function | Description |
+  |----------|-------------|
+  | `date(year, month, day)` | Creates a `Date` |
+  | `datetime(year, month, day)` | Creates a `NaiveDateTime` at midnight |
+  | `datetime(year, month, day, hour, minute, second)` | Creates a `NaiveDateTime` |
+  | `today()` | Returns the current date |
+  | `now()` | Returns the current date and time |
+  | `year(date)` | Extracts the year |
+  | `month(date)` | Extracts the month (1-12) |
+  | `day(date)` | Extracts the day of the month (1-31) |
+  | `hour(date)` | Extracts the hour (0-23); returns 0 for a `Date` |
+  | `minute(date)` | Extracts the minute (0-59); returns 0 for a `Date` |
+  | `second(date)` | Extracts the second (0-59); returns 0 for a `Date` |
+  | `weekday(date)` | ISO day of the week (1 = Monday, 7 = Sunday) |
+  | `datedif(date1, date2, unit)` | Signed difference (`date2 − date1`) as an integer in the given unit |
+  | `dateadd(date, amount, unit)` | Shifts a date by N units; returns the same type |
+
+  Units for `datedif` and `dateadd`: `"years"`, `"months"`, `"days"`,
+  `"hours"`, `"minutes"`, `"seconds"`, `"milliseconds"`.
+
+  All date functions accept `Date`, `NaiveDateTime`, and `DateTime` structs.
+
   ### Special Forms
 
   | Form | Description |

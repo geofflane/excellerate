@@ -82,6 +82,32 @@ ExCellerate is a high-performance, extensible expression evaluation engine for E
 - `take(list, rows)` / `take(list, rows, cols)`: Extracts rows, columns, or both from a list or 2D array. Positive counts take from the beginning, negative from the end. Pass `null` to skip a dimension (e.g., `take(data, null, 2)` for columns only).
 - `slice(list, start)` / `slice(list, start, length)`: Extracts a contiguous section of a list. Zero-based start index; negative indices count from the end. Without length, returns everything from start to end.
 
+### Date & Time Functions
+
+Date and time functions operate on native Elixir `Date`, `NaiveDateTime`, and `DateTime` structs. Pass dates into expressions via the scope — there is no date literal syntax.
+
+#### Construction
+
+- `date(year, month, day)`: Creates a `Date`.
+- `datetime(year, month, day)` / `datetime(year, month, day, hour, minute, second)`: Creates a `NaiveDateTime`. Hour, minute, and second default to `0` when omitted.
+- `today()`: Returns the current date as a `Date`.
+- `now()`: Returns the current date and time as a `NaiveDateTime`.
+
+#### Extraction
+
+- `year(date)`: Extracts the year.
+- `month(date)`: Extracts the month (1-12).
+- `day(date)`: Extracts the day of the month (1-31).
+- `hour(date)`: Extracts the hour (0-23). Returns `0` for a plain `Date`.
+- `minute(date)`: Extracts the minute (0-59). Returns `0` for a plain `Date`.
+- `second(date)`: Extracts the second (0-59). Returns `0` for a plain `Date`.
+- `weekday(date)`: Returns the ISO day of the week (1 = Monday, 7 = Sunday).
+
+#### Arithmetic
+
+- `datedif(date1, date2, unit)`: Returns the signed difference (`date2 − date1`) as an integer in the given unit. The result is negative when `date1 > date2`; use `abs()` to get an unsigned value. Valid units: `"years"`, `"months"`, `"days"`, `"hours"`, `"minutes"`, `"seconds"`, `"milliseconds"`.
+- `dateadd(date, amount, unit)`: Shifts a date by the given integer amount and unit. Returns the same type as the input (adding sub-day units to a `Date` promotes it to a `NaiveDateTime`). End-of-month clamping is applied for `"months"` and `"years"` (e.g., Jan 31 + 1 month = Feb 28 or 29).
+
 ### Special Forms
 
 - `let(name, value, expr)`: Lexically binds `name` to `value` within `expr` only.
@@ -608,6 +634,82 @@ scope = %{"names" => ["Alice", "Bob"], "scores" => [90, 85]}
 
 ExCellerate.eval!("index(scores, match('Unknown', names))", scope)
 # => nil
+```
+
+### Date & Time
+
+Date and time functions work with native Elixir `Date`, `NaiveDateTime`, and `DateTime` structs from the scope. You can also construct dates within expressions:
+
+```elixir
+# Construct dates in expressions
+ExCellerate.eval!("date(2024, 6, 15)")
+# => ~D[2024-06-15]
+
+ExCellerate.eval!("datetime(2024, 6, 15, 13, 30, 0)")
+# => ~N[2024-06-15 13:30:00]
+```
+
+Extract components from dates passed in scope:
+
+```elixir
+scope = %{"birthday" => ~D[1990-07-04]}
+
+ExCellerate.eval!("year(birthday)", scope)
+# => 1990
+
+ExCellerate.eval!("month(birthday)", scope)
+# => 7
+```
+
+Calculate differences between dates:
+
+```elixir
+scope = %{
+  "start" => ~D[2024-01-01],
+  "end" => ~D[2024-03-15]
+}
+
+ExCellerate.eval!("datedif(start, end, 'days')", scope)
+# => 74
+
+ExCellerate.eval!("datedif(start, end, 'months')", scope)
+# => 2
+
+ExCellerate.eval!("datedif(start, end, 'hours')", scope)
+# => 1776
+```
+
+Shift dates forward or backward:
+
+```elixir
+scope = %{"due" => ~D[2024-01-31]}
+
+ExCellerate.eval!("dateadd(due, 30, 'days')", scope)
+# => ~D[2024-03-01]
+
+# End-of-month clamping: Jan 31 + 1 month = Feb 29 (2024 is a leap year)
+ExCellerate.eval!("dateadd(due, 1, 'months')", scope)
+# => ~D[2024-02-29]
+```
+
+Compose date functions with other expressions:
+
+```elixir
+scope = %{
+  "events" => [
+    %{"name" => "Launch", "date" => ~D[2024-03-01]},
+    %{"name" => "Review", "date" => ~D[2024-06-15]},
+    %{"name" => "Release", "date" => ~D[2024-09-30]}
+  ],
+  "cutoff" => ~D[2024-05-01]
+}
+
+# Use date functions with spreads and filtering
+ExCellerate.eval!("events[*].date", scope)
+# => [~D[2024-03-01], ~D[2024-06-15], ~D[2024-09-30]]
+
+ExCellerate.eval!("year(events[0].date)", scope)
+# => 2024
 ```
 
 ## Pre-compilation
