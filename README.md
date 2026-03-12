@@ -6,6 +6,113 @@
 
 ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
 
+## Installation
+
+Add it to your mix.exs:
+
+```elixir
+def deps do
+  [
+    {:excellerate, "~> 0.3.0"}
+  ]
+end
+```
+
+### Performance & Caching
+
+ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
+
+```elixir
+# In your Application module (e.g., lib/my_app/application.ex)
+def start(_type, _args) do
+  children = [
+    ExCellerate.Cache,
+    # ... your other children
+  ]
+
+  Supervisor.start_link(children, strategy: :one_for_one)
+end
+```
+
+If the cache is not started, ExCellerate still works — expressions will simply be parsed and compiled on every call.
+
+### Configuring Caching in a Registry
+
+You can also create your own registry to configure caching and register your own functions (see below).
+
+```elixir
+defmodule MyRegistry do
+  use ExCellerate.Registry,
+    plugins: [...],
+    cache_enabled: true,    # Default: true
+    cache_limit: 5000       # Default: 1000
+end
+```
+
+If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression.
+
+When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
+
+### Global Defaults
+
+While per-registry configuration is preferred, you can still provide global defaults for expressions evaluated via `ExCellerate.eval/3` without a custom registry using Application environment variables:
+
+```elixir
+config :excellerate,
+  cache_enabled: true,
+  cache_limit: 1000
+```
+
+### Custom Registries and Overrides
+
+ExCellerate is designed for performance and extensibility. The way to add or override behavior is by creating a dedicated Registry module. This compiles the function dispatch logic once, providing better performance.
+
+#### 1. Define your Custom Functions
+
+```elixir
+defmodule MyApp.Functions.Greet do
+  @behaviour ExCellerate.Function
+
+  def name, do: "greet"
+  def arity, do: 1
+  def call([name]), do: "Hello, #{name}!"
+end
+
+defmodule MyApp.Functions.CustomAbs do
+  @behaviour ExCellerate.Function
+  def name, do: "abs" # This will override the built-in abs()
+  def arity, do: 1
+  def call([_]), do: 42
+end
+```
+
+#### 2. Create your Registry
+
+```elixir
+defmodule MyApp.Registry do
+  use ExCellerate.Registry, plugins: [
+    MyApp.Functions.Greet,
+    MyApp.Functions.CustomAbs
+  ]
+end
+```
+
+#### 3. Use your Registry
+
+```elixir
+# Use the eval!/2 function generated in your registry
+MyApp.Registry.eval!("greet('World')")
+# => "Hello, World!"
+
+# Overridden functions work as expected
+MyApp.Registry.eval!("abs(-100)")
+# => 42
+
+# Default functions (not overridden) are still available
+MyApp.Registry.eval!("max(10, 20)")
+# => 20
+```
+
 ## Features
 
 - **Blazing Fast**: Compiles expressions to native Elixir code and caches the results using ETS for near-instant repeated evaluations.
@@ -731,99 +838,6 @@ fun.(%{"price" => 50, "quantity" => 10, "discount" => 0.2})
 fun = ExCellerate.compile!("a + b")
 fun.(%{"a" => 1, "b" => 2})
 # => 3
-```
-
-## Performance & Caching
-
-ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
-
-```elixir
-# In your Application module (e.g., lib/my_app/application.ex)
-def start(_type, _args) do
-  children = [
-    ExCellerate.Cache,
-    # ... your other children
-  ]
-
-  Supervisor.start_link(children, strategy: :one_for_one)
-end
-```
-
-If the cache is not started, ExCellerate still works — expressions will simply be parsed and compiled on every call.
-
-### Configuring Caching in a Registry
-
-```elixir
-defmodule MyRegistry do
-  use ExCellerate.Registry,
-    plugins: [...],
-    cache_enabled: true,    # Default: true
-    cache_limit: 5000       # Default: 1000
-end
-```
-
-If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression.
-
-When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
-
-### Global Defaults
-
-While per-registry configuration is preferred, you can still provide global defaults for expressions evaluated via `ExCellerate.eval/3` without a custom registry using Application environment variables:
-
-```elixir
-config :excellerate,
-  cache_enabled: true,
-  cache_limit: 1000
-```
-
-## Custom Registries and Overrides
-
-ExCellerate is designed for performance and extensibility. The way to add or override behavior is by creating a dedicated Registry module. This compiles the function dispatch logic once, providing better performance.
-
-### 1. Define your Custom Functions
-
-```elixir
-defmodule MyApp.Functions.Greet do
-  @behaviour ExCellerate.Function
-
-  def name, do: "greet"
-  def arity, do: 1
-  def call([name]), do: "Hello, #{name}!"
-end
-
-defmodule MyApp.Functions.CustomAbs do
-  @behaviour ExCellerate.Function
-  def name, do: "abs" # This will override the built-in abs()
-  def arity, do: 1
-  def call([_]), do: 42
-end
-```
-
-### 2. Create your Registry
-
-```elixir
-defmodule MyApp.Registry do
-  use ExCellerate.Registry, plugins: [
-    MyApp.Functions.Greet,
-    MyApp.Functions.CustomAbs
-  ]
-end
-```
-
-### 3. Use your Registry
-
-```elixir
-# Use the eval!/2 function generated in your registry
-MyApp.Registry.eval!("greet('World')")
-# => "Hello, World!"
-
-# Overridden functions work as expected
-MyApp.Registry.eval!("abs(-100)")
-# => 42
-
-# Default functions (not overridden) are still available
-MyApp.Registry.eval!("max(10, 20)")
-# => 20
 ```
 
 ## Pros and Cons
