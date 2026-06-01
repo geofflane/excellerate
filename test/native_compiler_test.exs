@@ -34,5 +34,10 @@ defmodule ExCellerate.NativeCompilerTest do
     test "returns the same error contract as the interpreted path on bad input" do
       assert {:error, %ExCellerate.Error{type: :parser}} = NativeCompiler.compile("1 +")
     end
+
+    test "catches compiler-phase errors (unknown function) as the error contract" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               NativeCompiler.compile("unknown_func(1)")
+    end
   end
 end
