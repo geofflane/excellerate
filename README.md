@@ -4,7 +4,7 @@
 [![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/excellerate)
 [![CI](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml/badge.svg)](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml)
 
-ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
+ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR), compiles the IR into Elixir AST, and builds a reusable function from it, caching compiled functions in ETS so repeated evaluations skip parsing and compilation. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
 
 ## Installation
 
@@ -115,7 +115,7 @@ MyApp.Registry.eval!("max(10, 20)")
 
 ## Features
 
-- **Blazing Fast**: Compiles expressions to native Elixir code and caches the results using ETS for near-instant repeated evaluations.
+- **Fast Repeated Evaluation**: Compiles each expression to a reusable function once and caches it in ETS, so evaluating the same expression again skips parsing and compilation.
 - **Robust Error System**: Detailed error reporting for Parsing, Compilation, and Runtime issues via `ExCellerate.Error`.
 - **Validation Support**: Built-in `validate/1` to check syntax and function existence without execution.
 - **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`), lists (`data[0]`, `data[-1]`), structs, and column spreads (`orders[*].price`).
@@ -844,7 +844,7 @@ fun.(%{"a" => 1, "b" => 2})
 
 ### Pros
 
-- **Performance**: By compiling to Elixir AST and caching results in ETS, ExCellerate avoids redundant parsing and provides execution speeds matching native Elixir.
+- **Performance**: By compiling each expression to a reusable function and caching it in ETS, ExCellerate avoids redundant parsing and compilation on repeated evaluations.
 - **Safety**: Expressions are compiled into a restricted subset of Elixir, preventing arbitrary code execution.
 - **Error Handling**: Detailed structs identify exactly where and why an expression failed (e.g., line/column for parse errors).
 - **Extensibility**: The registry system makes it easy to add domain-specific logic without modifying the core library.

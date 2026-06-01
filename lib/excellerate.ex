@@ -2,8 +2,10 @@ defmodule ExCellerate do
   @moduledoc """
   ExCellerate is a high-performance expression evaluation engine for Elixir.
 
-  It parses text expressions into an intermediate representation (IR) and then
-  compiles them into native Elixir AST for near-native performance.
+  It parses text expressions into an intermediate representation (IR), compiles
+  the IR into Elixir AST, and builds a reusable function from it. Compiled
+  functions are cached (keyed by expression and registry), so re-evaluating the
+  same expression skips parsing and compilation.
 
   ## Operators
 
