@@ -201,3 +201,72 @@ The current `priv/bench/caching_bench.exs` compares interpreter-vs-interpreter
   reclamation for crash-safety. Default delay TBD during implementation (start
   conservative, e.g. a few hundred ms or "next eviction cycle").
 - **Default on/off:** decided by Phase-1 benchmark results.
+
+## Benchmark Results (Phase 1) — 2026-06-01
+
+Run: `mise exec -- mix run priv/bench/native_bench.exs` (Benchee, time 3s, mem 1s).
+
+### Warm path — per-call `fun.(scope)` (lower is better)
+
+| Expression | interpreted | native | hand-written | native speedup | mem (interp → native) |
+|------------|------------:|-------:|-------------:|---------------:|----------------------:|
+| arithmetic | 231 ns | 26 ns | 4.1 ns | **8.7×** | 944 B → 0 B |
+| function_calls | 893 ns | 209 ns | 4.1 ns | **4.3×** | 3,976 B → 72 B |
+| nested_access | 9,827 ns | 85 ns | 53 ns | **116×** | 40,032 B → 24 B |
+| ternary_logic | 1,501 ns | 54 ns | 40 ns | **27.8×** | 6,240 B → 48 B |
+
+Native is 1.35×–6.5× of the hand-written floor; interpreted is 37×–218× slower
+than the floor. Native also slashes per-eval allocation (interpreted nested
+access allocates ~40 KB **per call**).
+
+### Cold path — compile cost (lower is better)
+
+| Expression | parse only | interpreted compile | native compile | extra cost (native − interp) |
+|------------|-----------:|--------------------:|---------------:|-----------------------------:|
+| arithmetic | 3.4 µs | 8.4 µs | 2,339 µs | ~2.33 ms |
+| function_calls | 6.3 µs | 15.7 µs | 3,493 µs | ~3.48 ms |
+| nested_access | 1.5 µs | 75 µs | 6,453 µs | ~6.38 ms |
+| ternary_logic | 6.0 µs | 35 µs | 5,998 µs | ~5.96 ms |
+
+Native compilation (`Module.create` → full BEAM compile) costs **~2.3–6.5 ms**
+vs **~8–75 µs** interpreted — roughly 100–700× more expensive, once per
+expression.
+
+### Break-even (repeat evals of the *same* expression to amortize native's extra compile cost)
+
+`break_even ≈ (native_compile − interp_compile) / (interp_warm − native_warm)`
+
+| Expression | break-even (evals) |
+|------------|-------------------:|
+| nested_access | ~655 |
+| ternary_logic | ~4,119 |
+| function_calls | ~5,085 |
+| arithmetic | ~11,385 |
+
+### Reading
+
+- **Warm-path win is large and real** (4×–116× faster, far less memory) — for
+  expressions evaluated many times, native is clearly better.
+- **Cold cost is heavy** (multi-ms per expression) — break-even is hundreds to
+  ~11k repeat evaluations. For expressions evaluated only a handful of times,
+  native is **strictly worse** (the compile cost dominates and adds multi-ms
+  first-eval latency).
+- **Implication for policy:** the approved "compile-every-expression" policy
+  makes *every* distinct expression pay the multi-ms cost, only paying off for
+  very hot expressions. The data argues for revisiting toward
+  **compile-on-repeat** (compile only after an expression proves hot), so the
+  warm-path win is captured only where it amortizes and one-shot/rare expressions
+  keep the cheap interpreted path.
+
+### Decision (2026-06-01): PROCEED to Phase 2 — compile-every (as originally approved)
+
+Proceed with **compile-every-expression** as designed. Rationale (from the
+consumer's workload): every expression is evaluated hundreds of times per game
+(at minimum once per play), so each cached expression is far past break-even —
+the compile-on-repeat hedge buys nothing here. Additionally, the per-eval
+**allocation** drop is decisive on its own: interpreted allocates 944 B–40 KB
+*per call* (40 KB for nested access), versus 0–72 B native. For a hot
+per-play evaluation loop that is a major reduction in GC pressure independent of
+raw speed. The bounded module-name slot pool + grace-period soft-purge (Phase 2)
+still bound atoms and memory. Phase 2 (Tasks 5–10) proceeds as written; the
+grace-purge delay can be short since evals are sub- to low-microsecond.
