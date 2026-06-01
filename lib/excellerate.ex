@@ -286,12 +286,14 @@ defmodule ExCellerate do
 
       config :excellerate,
         max_expression_length: 10_000,  # max raw input size in bytes
-        max_expression_depth: 100        # max nesting depth of the parsed tree
+        max_expression_depth: 100,       # max nesting depth of the parsed tree
+        max_factorial_input: 10_000      # max operand for the `!` operator
 
   Oversized input is rejected before parsing (a `:parser` error); expressions
   nested beyond `max_expression_depth` are rejected before compilation (a
-  `:compiler` error). Raise the limits if your expressions are legitimately
-  large or deeply nested.
+  `:compiler` error); a factorial operand above `max_factorial_input` is
+  rejected at evaluation (a `:runtime` error). Raise the limits if your
+  expressions are legitimately large, deeply nested, or need large factorials.
   """
 
   alias ExCellerate.Compiler

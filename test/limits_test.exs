@@ -45,4 +45,28 @@ defmodule ExCellerate.LimitsTest do
       assert {:error, %ExCellerate.Error{type: :compiler}} = ExCellerate.eval("1 + 1 + 1 + 1 + 1")
     end
   end
+
+  describe "factorial limit" do
+    test "rejects an operand above the factorial limit" do
+      assert {:error, %ExCellerate.Error{type: :runtime, message: msg}} =
+               ExCellerate.eval("999999999!")
+
+      assert msg =~ "too large"
+    end
+
+    test "computes large factorials at the default cap without exhausting the stack" do
+      # 10_000! is a ~35k-digit bignum; this only completes promptly if the
+      # implementation is tail-recursive rather than building a deep call stack.
+      result = ExCellerate.eval!("10000!")
+      assert is_integer(result) and result > 0
+    end
+
+    test "the factorial limit is configurable via application env" do
+      Application.put_env(:excellerate, :max_factorial_input, 5)
+      on_exit(fn -> Application.delete_env(:excellerate, :max_factorial_input) end)
+
+      assert {:error, %ExCellerate.Error{type: :runtime}} = ExCellerate.eval("6!")
+      assert ExCellerate.eval!("5!") == 120
+    end
+  end
 end
