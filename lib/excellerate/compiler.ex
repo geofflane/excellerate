@@ -149,10 +149,44 @@ defmodule ExCellerate.Compiler do
 
   def merge_item_scope(_scope, _item), do: %{}
 
+  # Default cap on parsed-expression nesting depth. Bounds the cost of walking
+  # the IR, recursing in to_elixir_ast/2, and evaluating the generated AST on
+  # adversarial input (e.g. `-(-(-(...)))`). Override with
+  # `config :excellerate, max_expression_depth: <levels>`.
+  @default_max_depth 100
+
   # Compiles the IR into Elixir AST.
   @spec compile(tuple() | any(), module() | nil) :: Macro.t()
   def compile(ast, registry \\ nil) do
+    max_depth = Application.get_env(:excellerate, :max_expression_depth, @default_max_depth)
+
+    unless within_depth?(ast, max_depth) do
+      raise ExCellerate.Error,
+        message: "expression too deeply nested (limit #{max_depth})",
+        type: :compiler
+    end
+
     to_elixir_ast(ast, registry)
+  end
+
+  # True if `node`'s nesting is within `remaining` levels. Short-circuits as soon
+  # as the budget is exhausted so the check itself cannot recurse unboundedly.
+  defp within_depth?(_node, remaining) when remaining < 0, do: false
+
+  defp within_depth?(node, remaining) when is_tuple(node) do
+    node |> Tuple.to_list() |> within_list_depth?(remaining - 1)
+  end
+
+  defp within_depth?(node, remaining) when is_list(node) do
+    within_list_depth?(node, remaining - 1)
+  end
+
+  defp within_depth?(_leaf, _remaining), do: true
+
+  defp within_list_depth?([], _remaining), do: true
+
+  defp within_list_depth?([head | tail], remaining) do
+    within_depth?(head, remaining) and within_list_depth?(tail, remaining)
   end
 
   # Resolves a function module at compile-time (during Compiler.compile/2).

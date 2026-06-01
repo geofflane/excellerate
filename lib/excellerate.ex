@@ -277,6 +277,21 @@ defmodule ExCellerate do
       slice(items, 1)        # from index 1 to end
       slice(items, 1, 3)     # 3 elements starting at index 1
       slice(items, -2)       # last 2 elements
+
+  ## Resource Limits
+
+  When evaluating untrusted expression strings, two guards bound the work a
+  single expression can trigger. Both are configurable and fall back to safe
+  defaults:
+
+      config :excellerate,
+        max_expression_length: 10_000,  # max raw input size in bytes
+        max_expression_depth: 100        # max nesting depth of the parsed tree
+
+  Oversized input is rejected before parsing (a `:parser` error); expressions
+  nested beyond `max_expression_depth` are rejected before compilation (a
+  `:compiler` error). Raise the limits if your expressions are legitimately
+  large or deeply nested.
   """
 
   alias ExCellerate.Compiler

@@ -493,7 +493,26 @@ defmodule ExCellerate.Parser do
 
   # ── Public API ─────────────────────────────────────────────────
 
+  # Default cap on raw expression byte size. Bounds parser recursion (and
+  # therefore stack/CPU/memory) on adversarial input before any parsing happens.
+  # Override with `config :excellerate, max_expression_length: <bytes>`.
+  @default_max_length 10_000
+
   def parse(input) do
+    max_length = Application.get_env(:excellerate, :max_expression_length, @default_max_length)
+
+    if byte_size(input) > max_length do
+      {:error,
+       ExCellerate.Error.exception(
+         message: "expression too long (#{byte_size(input)} bytes, limit #{max_length})",
+         type: :parser
+       )}
+    else
+      do_parse(input)
+    end
+  end
+
+  defp do_parse(input) do
     case expression(input) do
       {:ok, [ast], "", _, _, _} ->
         {:ok, ast}
