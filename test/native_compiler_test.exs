@@ -40,4 +40,26 @@ defmodule ExCellerate.NativeCompilerTest do
                NativeCompiler.compile("unknown_func(1)")
     end
   end
+
+  describe "parity across a representative corpus" do
+    @corpus [
+      {"1 + 2 * 3 / (4 - 1)", %{}},
+      {"a > 10 && b < 20 ? 'valid' : 'invalid'", %{"a" => 15, "b" => 5}},
+      {"abs(-10) + round(1.5) + max(10, 20)", %{}},
+      {"upper(concat('a', name))", %{"name" => "bc"}},
+      {"sum(orders[*].price)", %{"orders" => [%{"price" => 10}, %{"price" => 25}]}},
+      {"let(x, 5, x * x)", %{}},
+      {"5!", %{}}
+    ]
+
+    for {expr, scope} <- @corpus do
+      test "native matches interpreted for #{expr}" do
+        {:ok, native} = NativeCompiler.compile(unquote(expr))
+        {:ok, interpreted} = ExCellerate.compile(unquote(expr))
+
+        assert native.(unquote(Macro.escape(scope))) ==
+                 interpreted.(unquote(Macro.escape(scope)))
+      end
+    end
+  end
 end
