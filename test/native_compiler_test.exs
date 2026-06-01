@@ -3,6 +3,23 @@ defmodule ExCellerate.NativeCompilerTest do
 
   alias ExCellerate.NativeCompiler
 
+  defmodule SlowReg do
+    @moduledoc false
+    defmodule Slow do
+      @moduledoc false
+      @behaviour ExCellerate.Function
+      def name, do: "slow"
+      def arity, do: 1
+
+      def call([ms]) do
+        Process.sleep(ms)
+        ms
+      end
+    end
+
+    use ExCellerate.Registry, plugins: [Slow]
+  end
+
   describe "compile/2" do
     test "native-compiled eval matches the interpreted result" do
       expr = "abs(-10) + round(1.5) + max(10, 20)"
@@ -151,6 +168,36 @@ defmodule ExCellerate.NativeCompilerTest do
       assert :ok = NativeCompiler.release(nil, "never_compiled")
       # No crash; pool unchanged.
       assert %{by_key: 0} = NativeCompiler.pool_stats()
+    end
+
+    test "does not free a slot while its module's code is still executing" do
+      start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 10})
+
+      # The slow(...) call must sit in NON-tail position (the `+ 1`) so the
+      # generated eval/1 frame stays on the running process's call stack during
+      # the sleep. A bare "slow(80)" tail-calls out of eval/1, so its code is no
+      # longer "in use" mid-sleep and soft_purge would succeed immediately.
+      expr = "slow(80) + 1"
+      {:ok, ast} = Parser.parse(expr)
+      elixir_ast = Compiler.compile(ast, SlowReg)
+      {:ok, fun, _mod} = NativeCompiler.compile_cached(SlowReg, expr, elixir_ast)
+
+      # Run the native fun (sleeps 80ms) in another process.
+      task = Task.async(fn -> fun.(%{}) end)
+      Process.sleep(10)
+
+      # Release while the call is still running; grace (10ms) elapses mid-call,
+      # so the purge attempt sees the code in use -> soft_purge false -> not freed.
+      NativeCompiler.release(SlowReg, expr)
+      Process.sleep(40)
+      assert NativeCompiler.pool_stats().free == 0
+
+      # The in-flight call completes correctly despite the release.
+      assert Task.await(task) == 81
+
+      # Once the code is no longer running, a later purge cycle frees the slot.
+      Process.sleep(60)
+      assert NativeCompiler.pool_stats().free == 1
     end
   end
 end

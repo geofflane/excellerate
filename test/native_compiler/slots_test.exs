@@ -49,4 +49,14 @@ defmodule ExCellerate.NativeCompiler.SlotsTest do
     s = Slots.free(s, name)
     assert {:ok, ^name, _} = Slots.alloc(s)
   end
+
+  test "stats/1 reports minted and free counts and reflects alloc/free" do
+    assert Slots.stats(Slots.new(3)) == %{minted: 0, free: 0}
+
+    {:ok, name, s} = Slots.alloc(Slots.new(3))
+    assert Slots.stats(s) == %{minted: 1, free: 0}
+
+    s = Slots.free(s, name)
+    assert Slots.stats(s) == %{minted: 1, free: 1}
+  end
 end

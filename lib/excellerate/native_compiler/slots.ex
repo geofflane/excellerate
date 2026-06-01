@@ -25,13 +25,23 @@ defmodule ExCellerate.NativeCompiler.Slots do
   end
 
   def alloc(%__MODULE__{minted: minted, cap: cap} = slots) when minted < cap do
-    name = Module.concat(ExCellerate.Compiled, "S#{minted}")
-    {:ok, name, %{slots | minted: minted + 1}}
+    {:ok, name(minted), %{slots | minted: minted + 1}}
   end
 
   def alloc(%__MODULE__{} = slots) do
     {:full, slots}
   end
+
+  # All module names this pool has ever minted (S0 .. S(minted-1)), regardless
+  # of whether they are currently allocated or free. Used by the owning
+  # GenServer to purge every module it created when it terminates.
+  @doc false
+  @spec minted_names(t()) :: [atom()]
+  def minted_names(%__MODULE__{minted: minted}) do
+    for i <- 0..(minted - 1)//1, do: name(i)
+  end
+
+  defp name(index), do: Module.concat(ExCellerate.Compiled, "S#{index}")
 
   # Returns a name to the pool's free list so a future alloc/1 reuses it. The
   # sole caller (the NativeCompiler GenServer) must not free the same name twice.
@@ -39,5 +49,13 @@ defmodule ExCellerate.NativeCompiler.Slots do
   @spec free(t(), atom()) :: t()
   def free(%__MODULE__{free: free} = slots, name) when is_atom(name) do
     %{slots | free: [name | free]}
+  end
+
+  # Pool counters for introspection: how many names have been minted and how
+  # many are currently free for reuse.
+  @doc false
+  @spec stats(t()) :: %{minted: non_neg_integer(), free: non_neg_integer()}
+  def stats(%__MODULE__{} = slots) do
+    %{minted: slots.minted, free: length(slots.free)}
   end
 end

@@ -66,6 +66,11 @@ defmodule ExCellerate.NativeCompiler do
 
   @impl true
   def init(opts) do
+    # Trap exits so terminate/2 runs on supervisor shutdown: a non-trapping
+    # GenServer is killed outright on a :shutdown signal and never gets to clean
+    # up the BEAM modules it minted.
+    Process.flag(:trap_exit, true)
+
     cap =
       Keyword.get(
         opts,
@@ -150,12 +155,7 @@ defmodule ExCellerate.NativeCompiler do
 
   @impl true
   def handle_call(:pool_stats, _from, state) do
-    stats = %{
-      minted: state.slots.minted,
-      free: length(state.slots.free),
-      by_key: map_size(state.by_key)
-    }
-
+    stats = Map.put(Slots.stats(state.slots), :by_key, map_size(state.by_key))
     {:reply, stats, state}
   end
 
@@ -172,16 +172,18 @@ defmodule ExCellerate.NativeCompiler do
         # Remove the key immediately so dedup won't hand out a module that is
         # about to be purged, then schedule the purge after the grace period.
         by_key = Map.delete(state.by_key, key)
-        Process.send_after(self(), {:purge, mod}, state.grace_ms)
+        Process.send_after(self(), {:purge, mod, :delete}, state.grace_ms)
         {:noreply, %{state | by_key: by_key}}
     end
   end
 
   @impl true
-  def handle_info({:purge, mod}, state) do
-    # Mark the current code old: new lookups fail, but any process still running
-    # the old code keeps doing so until it returns.
-    :code.delete(mod)
+  def handle_info({:purge, mod, phase}, state) do
+    # On the first (`:delete`) attempt, mark the current code old so new lookups
+    # fail while any process still running the old code keeps doing so until it
+    # returns. On `:retry` attempts the code is already old, so calling
+    # :code.delete again would log "must be purged before deleting" — skip it.
+    if phase == :delete, do: :code.delete(mod)
 
     case :code.soft_purge(mod) do
       true ->
@@ -191,10 +193,31 @@ defmodule ExCellerate.NativeCompiler do
 
       false ->
         # Old code still in use by some process. Do NOT free the slot yet;
-        # retry after another grace period.
-        Process.send_after(self(), {:purge, mod}, state.grace_ms)
+        # retry after another grace period (delete already happened).
+        Process.send_after(self(), {:purge, mod, :retry}, state.grace_ms)
         {:noreply, state}
     end
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    # Best-effort cleanup of EVERY module this server minted (not just the keys
+    # still live in by_key): a module that was released but whose grace purge
+    # hasn't fired yet is already gone from by_key, yet still loaded. Leaving any
+    # of these loaded makes a later server's Module.create redefine them (the
+    # "redefining module ExCellerate.Compiled.S0" warning) and can leave a
+    # half-deleted current+old version that corrupts the next lifecycle.
+    #
+    # The server owns these names and is going down, so hard-purge: :code.delete
+    # makes the current version old, then :code.purge removes ANY remaining
+    # version unconditionally (soft_purge would skip a referenced version and
+    # leave the phantom behind). Ignore results; this is best-effort teardown.
+    Enum.each(Slots.minted_names(state.slots), fn mod ->
+      :code.delete(mod)
+      :code.purge(mod)
+    end)
+
+    :ok
   end
 
   ## Shared helpers
