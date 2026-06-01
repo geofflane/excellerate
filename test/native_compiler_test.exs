@@ -107,4 +107,50 @@ defmodule ExCellerate.NativeCompilerTest do
              |> String.starts_with?("Elixir.ExCellerate.Compiled.E")
     end
   end
+
+  describe "release/2 + grace-period purge" do
+    alias ExCellerate.{Compiler, NativeCompiler, Parser}
+
+    defp ast!(expr) do
+      {:ok, ast} = Parser.parse(expr)
+      Compiler.compile(ast)
+    end
+
+    test "releasing a module purges it after the grace period and frees its slot for reuse" do
+      start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 20})
+
+      {:ok, _fun_a, mod_a} = NativeCompiler.compile_cached(nil, "1 + 1", ast!("1 + 1"))
+      assert %{free: 0, by_key: 1} = NativeCompiler.pool_stats()
+
+      NativeCompiler.release(nil, "1 + 1")
+      Process.sleep(120)
+
+      stats = NativeCompiler.pool_stats()
+      assert stats.by_key == 0
+      assert stats.free == 1
+
+      # The freed slot (same atom) is reused for the next expression.
+      {:ok, fun_b, mod_b} = NativeCompiler.compile_cached(nil, "2 + 3", ast!("2 + 3"))
+      assert mod_b == mod_a
+      assert fun_b.(%{}) == 5
+    end
+
+    test "a function captured just before release still evaluates during the grace window" do
+      start_supervised!({NativeCompiler, native_module_limit: 4, native_purge_grace_ms: 1000})
+
+      {:ok, fun, _mod} = NativeCompiler.compile_cached(nil, "10 * 2", ast!("10 * 2"))
+      NativeCompiler.release(nil, "10 * 2")
+
+      # Within the (long) grace window the captured fun is still valid.
+      assert fun.(%{}) == 20
+    end
+
+    test "releasing an unknown or interpreted-fallback key is a no-op" do
+      start_supervised!({NativeCompiler, native_module_limit: 4, native_purge_grace_ms: 20})
+
+      assert :ok = NativeCompiler.release(nil, "never_compiled")
+      # No crash; pool unchanged.
+      assert %{by_key: 0} = NativeCompiler.pool_stats()
+    end
+  end
 end

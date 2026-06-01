@@ -19,6 +19,7 @@ defmodule ExCellerate.NativeCompiler do
   alias ExCellerate.NativeCompiler.Slots
 
   @default_module_limit 4096
+  @default_grace_ms 1000
 
   ## Phase 1 standalone helpers
 
@@ -72,7 +73,14 @@ defmodule ExCellerate.NativeCompiler do
         Application.get_env(:excellerate, :native_module_limit, @default_module_limit)
       )
 
-    {:ok, %{slots: Slots.new(cap), by_key: %{}}}
+    grace_ms =
+      Keyword.get(
+        opts,
+        :native_purge_grace_ms,
+        Application.get_env(:excellerate, :native_purge_grace_ms, @default_grace_ms)
+      )
+
+    {:ok, %{slots: Slots.new(cap), by_key: %{}, grace_ms: grace_ms}}
   end
 
   # Compiles `elixir_ast` into a native BEAM module, reusing a pooled module
@@ -80,10 +88,34 @@ defmodule ExCellerate.NativeCompiler do
   #
   #   * {:ok, fun, mod_name}      — native module function
   #   * {:ok, interpreted_fun, nil} — fallback when the pool is full
+  #
+  # Assumes `elixir_ast` is an already-parsed/compiled, valid AST (produced by
+  # Parser + Compiler). Module creation is still guarded so a malformed-AST edge
+  # case falls back to an interpreted closure instead of crashing the server.
   @spec compile_cached(module() | nil, String.t(), Macro.t()) ::
           {:ok, (ExCellerate.scope() -> any()), module() | nil}
   def compile_cached(registry, expr, elixir_ast) do
     GenServer.call(__MODULE__, {:compile, registry, expr, elixir_ast})
+  end
+
+  # Releases a previously compiled {registry, expr} entry, scheduling its module
+  # to be purged after a grace period so its pool slot can be reused. A no-op for
+  # unknown keys or interpreted fallbacks (which were never recorded). Async;
+  # returns :ok.
+  @spec release(module() | nil, String.t()) :: :ok
+  def release(registry, expr) do
+    GenServer.cast(__MODULE__, {:release, registry, expr})
+  end
+
+  @doc false
+  # Introspection for deterministic tests. Returns pool counters.
+  @spec pool_stats() :: %{
+          minted: non_neg_integer(),
+          free: non_neg_integer(),
+          by_key: non_neg_integer()
+        }
+  def pool_stats do
+    GenServer.call(__MODULE__, :pool_stats)
   end
 
   @impl true
@@ -94,9 +126,18 @@ defmodule ExCellerate.NativeCompiler do
       nil ->
         case Slots.alloc(state.slots) do
           {:ok, name, slots} ->
-            fun = create_eval_module(name, elixir_ast)
-            by_key = Map.put(state.by_key, key, name)
-            {:reply, {:ok, fun, name}, %{state | slots: slots, by_key: by_key}}
+            try do
+              fun = create_eval_module(name, elixir_ast)
+              by_key = Map.put(state.by_key, key, name)
+              {:reply, {:ok, fun, name}, %{state | slots: slots, by_key: by_key}}
+            rescue
+              _ ->
+                # Module creation failed (e.g. a malformed AST). Return the slot
+                # to the pool and fall back to an interpreted closure without
+                # recording it in by_key.
+                slots = Slots.free(slots, name)
+                {:reply, {:ok, build_interpreted_fun(elixir_ast), nil}, %{state | slots: slots}}
+            end
 
           {:full, slots} ->
             {:reply, {:ok, build_interpreted_fun(elixir_ast), nil}, %{state | slots: slots}}
@@ -104,6 +145,55 @@ defmodule ExCellerate.NativeCompiler do
 
       mod ->
         {:reply, {:ok, Function.capture(mod, :eval, 1), mod}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(:pool_stats, _from, state) do
+    stats = %{
+      minted: state.slots.minted,
+      free: length(state.slots.free),
+      by_key: map_size(state.by_key)
+    }
+
+    {:reply, stats, state}
+  end
+
+  @impl true
+  def handle_cast({:release, registry, expr}, state) do
+    key = {registry, expr}
+
+    case Map.get(state.by_key, key) do
+      nil ->
+        # Unknown key or an interpreted fallback (never recorded) — nothing to do.
+        {:noreply, state}
+
+      mod ->
+        # Remove the key immediately so dedup won't hand out a module that is
+        # about to be purged, then schedule the purge after the grace period.
+        by_key = Map.delete(state.by_key, key)
+        Process.send_after(self(), {:purge, mod}, state.grace_ms)
+        {:noreply, %{state | by_key: by_key}}
+    end
+  end
+
+  @impl true
+  def handle_info({:purge, mod}, state) do
+    # Mark the current code old: new lookups fail, but any process still running
+    # the old code keeps doing so until it returns.
+    :code.delete(mod)
+
+    case :code.soft_purge(mod) do
+      true ->
+        # Fully purged (or nothing to purge). The name is now safe to reuse; a
+        # later Module.create under it is a fresh definition.
+        {:noreply, %{state | slots: Slots.free(state.slots, mod)}}
+
+      false ->
+        # Old code still in use by some process. Do NOT free the slot yet;
+        # retry after another grace period.
+        Process.send_after(self(), {:purge, mod}, state.grace_ms)
+        {:noreply, state}
     end
   end
 
