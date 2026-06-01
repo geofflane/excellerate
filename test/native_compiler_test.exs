@@ -62,4 +62,49 @@ defmodule ExCellerate.NativeCompilerTest do
       end
     end
   end
+
+  describe "compile_cached/3 (GenServer)" do
+    alias ExCellerate.{Compiler, NativeCompiler, Parser}
+
+    defp elixir_ast!(expr) do
+      {:ok, ast} = Parser.parse(expr)
+      Compiler.compile(ast)
+    end
+
+    test "compiles to a native module and returns its name" do
+      start_supervised!({NativeCompiler, native_module_limit: 8})
+      {:ok, fun, mod} = NativeCompiler.compile_cached(nil, "1 + 2", elixir_ast!("1 + 2"))
+
+      assert Function.info(fun)[:type] == :external
+      assert mod |> Atom.to_string() |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+      assert fun.(%{}) == 3
+    end
+
+    test "dedups: same {registry, expr} reuses the same module" do
+      start_supervised!({NativeCompiler, native_module_limit: 8})
+      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      {:ok, _f2, mod2} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      assert mod1 == mod2
+    end
+
+    test "falls back to an interpreted closure when the pool is full" do
+      start_supervised!({NativeCompiler, native_module_limit: 1})
+      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
+      assert is_atom(mod1) and mod1 != nil
+
+      {:ok, f2, mod2} = NativeCompiler.compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
+      assert mod2 == nil
+      assert Function.info(f2)[:module] == :erl_eval
+      assert f2.(%{}) == 4
+    end
+
+    test "the standalone compile/2 helper still works (Phase 1 unaffected)" do
+      {:ok, fun} = NativeCompiler.compile("3 + 4")
+      assert fun.(%{}) == 7
+
+      assert Function.info(fun)[:module]
+             |> Atom.to_string()
+             |> String.starts_with?("Elixir.ExCellerate.Compiled.E")
+    end
+  end
 end
