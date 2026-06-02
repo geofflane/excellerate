@@ -1,3 +1,7 @@
+# INVARIANT: any test in this file that starts the global ExCellerate.NativeCompiler,
+# or stops/restarts the global ExCellerate.Cache, MUST be `async: false`. These are
+# globally-named singletons consumed by the public ExCellerate.compile/2; running such
+# tests concurrently with async tests causes races over the shared registered names.
 defmodule ExCellerate.NativeCompilationIntegrationTest do
   use ExUnit.Case, async: false
 
@@ -48,10 +52,14 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
 
     assert ExCellerate.eval!("1 + 1") == 2
     assert ExCellerate.eval!("2 + 2") == 4
+    # With cache_limit: 1, evaluating "2 + 2" evicts "1 + 1", which releases A's
+    # native module. After the purge grace (20ms, set in setup), A's slot returns
+    # to the pool. Sleep past the grace, then assert the slot was actually reclaimed
+    # (proves release + purge fired, not a trivially-true condition).
     Process.sleep(120)
 
     stats = NativeCompiler.pool_stats()
-    assert stats.free >= 1 or stats.minted <= 2
+    assert stats.free >= 1
   end
 
   test "native_compilation: false falls back to the interpreter" do
@@ -104,5 +112,41 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
     {:ok, fun} = ExCellerate.compile("7 + 8")
     assert Function.info(fun)[:module] == :erl_eval
     assert fun.(%{}) == 15
+  end
+
+  test "falls back to interpreter if NativeCompiler name is owned by a non-GenServer (race safety)" do
+    # Simulate the TOCTOU race: build_fun's Process.whereis sees a LIVE process
+    # registered under the NativeCompiler name, but the subsequent GenServer.call
+    # exits. The dummy stays alive (so whereis returns its pid), then on receiving
+    # the GenServer.call it exits without replying. Because the caller monitors the
+    # callee for the duration of the call, this makes GenServer.call exit with
+    # {:noproc/:EXIT, ...} *immediately* (no 5s timeout) — deterministic and fast.
+    # With the :exit catch in build_fun, eval must still succeed via the interpreter.
+    ExCellerate.Cache.clear()
+
+    parent = self()
+
+    pid =
+      spawn(fn ->
+        Process.register(self(), ExCellerate.NativeCompiler)
+        send(parent, :registered)
+
+        # Wait for the GenServer.call ($gen_call) message, then die without
+        # replying so the caller's call exits at once.
+        receive do
+          {:"$gen_call", _from, _request} -> exit(:simulated_crash)
+        end
+      end)
+
+    assert_receive :registered
+    # Sanity: the name is owned by our live dummy at the whereis check.
+    assert Process.whereis(ExCellerate.NativeCompiler) == pid
+
+    # No caller crash; result is correct via the interpreted fallback.
+    assert ExCellerate.eval!("2 + 3") == 5
+
+    on_exit(fn ->
+      if p = Process.whereis(ExCellerate.NativeCompiler), do: Process.exit(p, :kill)
+    end)
   end
 end

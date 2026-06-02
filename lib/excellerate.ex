@@ -484,10 +484,22 @@ defmodule ExCellerate do
   # interpreted builder is pure (no process), so the fallback is always safe.
   defp build_fun(expression, registry, elixir_ast) do
     if native_enabled?(registry) and Process.whereis(ExCellerate.NativeCompiler) != nil do
-      {:ok, fun, mod_name} =
-        ExCellerate.NativeCompiler.compile_cached(registry, expression, elixir_ast)
+      try do
+        {:ok, fun, mod_name} =
+          ExCellerate.NativeCompiler.compile_cached(registry, expression, elixir_ast)
 
-      {fun, mod_name}
+        {fun, mod_name}
+      catch
+        # TOCTOU: the NativeCompiler can crash, be restarted by its supervisor, or
+        # time out between the whereis check above and this GenServer.call, which
+        # surfaces as an EXIT (`:noproc`, `:shutdown`, `:timeout`, ...). The
+        # enclosing compile_to_function/2 only `rescue`s, which does not catch
+        # exits. Native compilation is a transparent optimization, so we degrade to
+        # the pure interpreted builder (always safe) rather than crash the caller —
+        # this matters because eval/2 runs hundreds of times per game on the hot path.
+        :exit, _ ->
+          {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
+      end
     else
       {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
     end
