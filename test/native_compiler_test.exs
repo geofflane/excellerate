@@ -1,0 +1,207 @@
+defmodule ExCellerate.NativeCompilerTest do
+  # async: false — these tests register a globally-named ExCellerate.NativeCompiler
+  # process, which ExCellerate.compile/2 consults. Running concurrently with other
+  # test files that call ExCellerate.eval/compile would let those calls dispatch
+  # into a NativeCompiler that is mid-shutdown, exiting their GenServer.call.
+  use ExUnit.Case, async: false
+
+  alias ExCellerate.NativeCompiler
+
+  defmodule SlowReg do
+    @moduledoc false
+    defmodule Slow do
+      @moduledoc false
+      @behaviour ExCellerate.Function
+      def name, do: "slow"
+      def arity, do: 1
+
+      def call([ms]) do
+        Process.sleep(ms)
+        ms
+      end
+    end
+
+    use ExCellerate.Registry, plugins: [Slow]
+  end
+
+  describe "compile/2" do
+    test "native-compiled eval matches the interpreted result" do
+      expr = "abs(-10) + round(1.5) + max(10, 20)"
+      {:ok, native} = NativeCompiler.compile(expr)
+      {:ok, interpreted} = ExCellerate.compile(expr)
+      assert native.(%{}) == interpreted.(%{})
+    end
+
+    test "evaluates against a scope like the interpreted path" do
+      {:ok, native} = NativeCompiler.compile("user.profile.zip")
+      assert native.(%{"user" => %{"profile" => %{"zip" => "12345"}}}) == "12345"
+    end
+
+    test "the returned function runs as a real loaded module, not the interpreter" do
+      {:ok, native} = NativeCompiler.compile("1 + 2")
+      info = Function.info(native)
+      assert info[:type] == :external
+
+      assert info[:module]
+             |> Atom.to_string()
+             |> String.starts_with?("Elixir.ExCellerate.Compiled")
+    end
+
+    test "contrast: the interpreted path runs in the erlang interpreter" do
+      {:ok, interpreted} = ExCellerate.compile("1 + 2")
+      assert Function.info(interpreted)[:module] == :erl_eval
+    end
+
+    test "returns the same error contract as the interpreted path on bad input" do
+      assert {:error, %ExCellerate.Error{type: :parser}} = NativeCompiler.compile("1 +")
+    end
+
+    test "catches compiler-phase errors (unknown function) as the error contract" do
+      assert {:error, %ExCellerate.Error{type: :compiler}} =
+               NativeCompiler.compile("unknown_func(1)")
+    end
+  end
+
+  describe "parity across a representative corpus" do
+    @corpus [
+      {"1 + 2 * 3 / (4 - 1)", %{}},
+      {"a > 10 && b < 20 ? 'valid' : 'invalid'", %{"a" => 15, "b" => 5}},
+      {"abs(-10) + round(1.5) + max(10, 20)", %{}},
+      {"upper(concat('a', name))", %{"name" => "bc"}},
+      {"sum(orders[*].price)", %{"orders" => [%{"price" => 10}, %{"price" => 25}]}},
+      {"let(x, 5, x * x)", %{}},
+      {"5!", %{}}
+    ]
+
+    for {expr, scope} <- @corpus do
+      test "native matches interpreted for #{expr}" do
+        {:ok, native} = NativeCompiler.compile(unquote(expr))
+        {:ok, interpreted} = ExCellerate.compile(unquote(expr))
+
+        assert native.(unquote(Macro.escape(scope))) ==
+                 interpreted.(unquote(Macro.escape(scope)))
+      end
+    end
+  end
+
+  describe "compile_cached/3 (GenServer)" do
+    alias ExCellerate.{Compiler, NativeCompiler, Parser}
+
+    defp elixir_ast!(expr) do
+      {:ok, ast} = Parser.parse(expr)
+      Compiler.compile(ast)
+    end
+
+    test "compiles to a native module and returns its name" do
+      start_supervised!({NativeCompiler, native_module_limit: 8})
+      {:ok, fun, mod} = NativeCompiler.compile_cached(nil, "1 + 2", elixir_ast!("1 + 2"))
+
+      assert Function.info(fun)[:type] == :external
+      assert mod |> Atom.to_string() |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+      assert fun.(%{}) == 3
+    end
+
+    test "dedups: same {registry, expr} reuses the same module" do
+      start_supervised!({NativeCompiler, native_module_limit: 8})
+      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      {:ok, _f2, mod2} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      assert mod1 == mod2
+    end
+
+    test "falls back to an interpreted closure when the pool is full" do
+      start_supervised!({NativeCompiler, native_module_limit: 1})
+      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
+      assert is_atom(mod1) and mod1 != nil
+
+      {:ok, f2, mod2} = NativeCompiler.compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
+      assert mod2 == nil
+      assert Function.info(f2)[:module] == :erl_eval
+      assert f2.(%{}) == 4
+    end
+
+    test "the standalone compile/2 helper still works (Phase 1 unaffected)" do
+      {:ok, fun} = NativeCompiler.compile("3 + 4")
+      assert fun.(%{}) == 7
+
+      assert Function.info(fun)[:module]
+             |> Atom.to_string()
+             |> String.starts_with?("Elixir.ExCellerate.Compiled.E")
+    end
+  end
+
+  describe "release/2 + grace-period purge" do
+    alias ExCellerate.{Compiler, NativeCompiler, Parser}
+
+    defp ast!(expr) do
+      {:ok, ast} = Parser.parse(expr)
+      Compiler.compile(ast)
+    end
+
+    test "releasing a module purges it after the grace period and frees its slot for reuse" do
+      start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 20})
+
+      {:ok, _fun_a, mod_a} = NativeCompiler.compile_cached(nil, "1 + 1", ast!("1 + 1"))
+      assert %{free: 0, by_key: 1} = NativeCompiler.pool_stats()
+
+      NativeCompiler.release(nil, "1 + 1")
+      Process.sleep(120)
+
+      stats = NativeCompiler.pool_stats()
+      assert stats.by_key == 0
+      assert stats.free == 1
+
+      # The freed slot (same atom) is reused for the next expression.
+      {:ok, fun_b, mod_b} = NativeCompiler.compile_cached(nil, "2 + 3", ast!("2 + 3"))
+      assert mod_b == mod_a
+      assert fun_b.(%{}) == 5
+    end
+
+    test "a function captured just before release still evaluates during the grace window" do
+      start_supervised!({NativeCompiler, native_module_limit: 4, native_purge_grace_ms: 1000})
+
+      {:ok, fun, _mod} = NativeCompiler.compile_cached(nil, "10 * 2", ast!("10 * 2"))
+      NativeCompiler.release(nil, "10 * 2")
+
+      # Within the (long) grace window the captured fun is still valid.
+      assert fun.(%{}) == 20
+    end
+
+    test "releasing an unknown or interpreted-fallback key is a no-op" do
+      start_supervised!({NativeCompiler, native_module_limit: 4, native_purge_grace_ms: 20})
+
+      assert :ok = NativeCompiler.release(nil, "never_compiled")
+      # No crash; pool unchanged.
+      assert %{by_key: 0} = NativeCompiler.pool_stats()
+    end
+
+    test "does not free a slot while its module's code is still executing" do
+      start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 10})
+
+      # The slow(...) call must sit in NON-tail position (the `+ 1`) so the
+      # generated eval/1 frame stays on the running process's call stack during
+      # the sleep. A bare "slow(80)" tail-calls out of eval/1, so its code is no
+      # longer "in use" mid-sleep and soft_purge would succeed immediately.
+      expr = "slow(80) + 1"
+      {:ok, ast} = Parser.parse(expr)
+      elixir_ast = Compiler.compile(ast, SlowReg)
+      {:ok, fun, _mod} = NativeCompiler.compile_cached(SlowReg, expr, elixir_ast)
+
+      # Run the native fun (sleeps 80ms) in another process.
+      task = Task.async(fn -> fun.(%{}) end)
+      Process.sleep(10)
+
+      # Release while the call is still running; grace (10ms) elapses mid-call,
+      # so the purge attempt sees the code in use -> soft_purge false -> not freed.
+      NativeCompiler.release(SlowReg, expr)
+      Process.sleep(40)
+      assert NativeCompiler.pool_stats().free == 0
+
+      # The in-flight call completes correctly despite the release.
+      assert Task.await(task) == 81
+
+      # Once the code is no longer running, a later purge cycle frees the slot.
+      Process.sleep(60)
+      assert NativeCompiler.pool_stats().free == 1
+    end
+  end
+end

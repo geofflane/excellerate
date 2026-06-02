@@ -25,3 +25,6 @@ excellerate-*.tar
 # dialyzer plts
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+# Session scaffolding (specs/plans) — not part of the repo; code docs stand alone.
+/docs/superpowers/

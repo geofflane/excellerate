@@ -4,7 +4,7 @@
 [![Hex Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/excellerate)
 [![CI](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml/badge.svg)](https://github.com/geofflane/excellerate/actions/workflows/elixir.yml)
 
-ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR) and compiles them directly into native Elixir AST for near-native execution speed. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
+ExCellerate is a high-performance, extensible expression evaluation engine for Elixir. It parses text-based expressions into an intermediate representation (IR), compiles the IR into Elixir AST, and builds a reusable function from it, caching compiled functions in ETS so repeated evaluations skip parsing and compilation. It's loosely inspired by spreadsheet style expressions, but since we don't have columns and rows exactly we don't access `A1` and instead rely on path notation into lists and maps.
 
 ## Installation
 
@@ -18,15 +18,15 @@ def deps do
 end
 ```
 
-### Performance & Caching
+### Performance, Caching & Native Compilation
 
-ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. To enable caching, add `ExCellerate.Cache` to your application's supervision tree:
+ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. Caching is opt-in: add `ExCellerate.Cache` to your application's supervision tree.
 
 ```elixir
 # In your Application module (e.g., lib/my_app/application.ex)
 def start(_type, _args) do
   children = [
-    ExCellerate.Cache,
+    ExCellerate.Cache,   # opt-in compiled-expression cache
     # ... your other children
   ]
 
@@ -34,7 +34,18 @@ def start(_type, _args) do
 end
 ```
 
-If the cache is not started, ExCellerate still works — expressions will simply be parsed and compiled on every call.
+If you don't start `ExCellerate.Cache`, ExCellerate still works — expressions are parsed and compiled on every call instead of being cached.
+
+#### Compilation strategy
+
+How an expression is executed is a pluggable **compilation strategy** (`ExCellerate.Compilation.Strategy`). Two are built in:
+
+- **`ExCellerate.Compilation.Interpreted`** (the **default**) — evaluates via an interpreted `Code.eval_quoted/3` closure. Creates no BEAM module and consumes no atoms per expression. Safe for any input, and the best choice for expressions evaluated only a few times (where compiling wouldn't pay off).
+- **`ExCellerate.Compilation.NativeCompiled`** — compiles each expression into a real, loaded BEAM module and evaluates it as compiled code. For repeatedly-evaluated expressions this is dramatically faster (single-digit-to-100×, depending on the expression) and allocates far less per call. Results are identical to the interpreted path.
+
+Opt into native compilation globally with `config :excellerate, compilation: ExCellerate.Compilation.NativeCompiled`, or per-registry with `use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled`. The `ExCellerate.NativeCompiler` process it needs is **started on demand** the first time a native compile happens (supervised by the `:excellerate` application) — you don't add anything to your supervision tree for it, and it works whether native is selected globally or only on a single registry. Nothing is started for interpreted-only use.
+
+**Important — when to use `NativeCompiled`.** It is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), keep the default `Interpreted` strategy, which allocates no atoms per expression.
 
 ### Configuring Caching in a Registry
 
@@ -44,12 +55,13 @@ You can also create your own registry to configure caching and register your own
 defmodule MyRegistry do
   use ExCellerate.Registry,
     plugins: [...],
-    cache_enabled: true,    # Default: true
-    cache_limit: 5000       # Default: 1000
+    cache_enabled: true,        # Default: true
+    cache_limit: 5000,          # Default: 1000
+    compilation: ExCellerate.Compilation.NativeCompiled  # Default: Interpreted; opt this registry into native
 end
 ```
 
-If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression.
+If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression. The default strategy is `Interpreted`; set `compilation: ExCellerate.Compilation.NativeCompiled` to opt this registry into native compilation (for a bounded/trusted set of expressions evaluated many times — see the atom note above).
 
 When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
 
@@ -60,8 +72,13 @@ While per-registry configuration is preferred, you can still provide global defa
 ```elixir
 config :excellerate,
   cache_enabled: true,
-  cache_limit: 1000
+  cache_limit: 1000,
+  compilation: ExCellerate.Compilation.Interpreted,  # strategy; default Interpreted, or .NativeCompiled
+  native_module_limit: 4096,   # max live compiled-module name slots (bounds module memory)
+  native_purge_grace_ms: 1000  # delay before purging an evicted module's code
 ```
+
+`native_module_limit` and `native_purge_grace_ms` only matter when you opt into the `NativeCompiled` strategy. See the strategy note above for the atom-cost caveat.
 
 ### Custom Registries and Overrides
 
@@ -115,7 +132,7 @@ MyApp.Registry.eval!("max(10, 20)")
 
 ## Features
 
-- **Blazing Fast**: Compiles expressions to native Elixir code and caches the results using ETS for near-instant repeated evaluations.
+- **Fast Repeated Evaluation**: Compiles each expression to a reusable function once and caches it in ETS, so evaluating the same expression again skips parsing and compilation.
 - **Robust Error System**: Detailed error reporting for Parsing, Compilation, and Runtime issues via `ExCellerate.Error`.
 - **Validation Support**: Built-in `validate/1` to check syntax and function existence without execution.
 - **Flexible Data Access**: Seamlessly access nested maps (`user.profile.name`), lists (`data[0]`, `data[-1]`), structs, and column spreads (`orders[*].price`).
@@ -844,7 +861,7 @@ fun.(%{"a" => 1, "b" => 2})
 
 ### Pros
 
-- **Performance**: By compiling to Elixir AST and caching results in ETS, ExCellerate avoids redundant parsing and provides execution speeds matching native Elixir.
+- **Performance**: By compiling each expression to a reusable function and caching it in ETS, ExCellerate avoids redundant parsing and compilation on repeated evaluations.
 - **Safety**: Expressions are compiled into a restricted subset of Elixir, preventing arbitrary code execution.
 - **Error Handling**: Detailed structs identify exactly where and why an expression failed (e.g., line/column for parse errors).
 - **Extensibility**: The registry system makes it easy to add domain-specific logic without modifying the core library.

@@ -22,7 +22,7 @@ defmodule ExCellerate.CacheTest do
 
     count =
       :ets.select_count(:excellerate_cache, [
-        {{{LimitRegistry, :_}, :_, :_}, [], [true]}
+        {{{LimitRegistry, :_}, :_, :_, :_}, [], [true]}
       ])
 
     assert count <= 2
@@ -31,14 +31,14 @@ defmodule ExCellerate.CacheTest do
   test "LRU eviction removes least recently used entry" do
     # Use Cache.put/get directly with deterministic values.
     # LimitRegistry has cache_limit: 2.
-    ExCellerate.Cache.put(LimitRegistry, "a", :val_a)
-    ExCellerate.Cache.put(LimitRegistry, "b", :val_b)
+    ExCellerate.Cache.put(LimitRegistry, "a", :val_a, nil)
+    ExCellerate.Cache.put(LimitRegistry, "b", :val_b, nil)
 
     # Touch "a" to make it most-recently-used
     assert {:ok, :val_a} = ExCellerate.Cache.get(LimitRegistry, "a")
 
     # Insert a third — should evict "b" (least recently used)
-    ExCellerate.Cache.put(LimitRegistry, "c", :val_c)
+    ExCellerate.Cache.put(LimitRegistry, "c", :val_c, nil)
 
     assert {:ok, :val_a} = ExCellerate.Cache.get(LimitRegistry, "a")
     assert :error = ExCellerate.Cache.get(LimitRegistry, "b")
@@ -46,9 +46,9 @@ defmodule ExCellerate.CacheTest do
   end
 
   test "LRU eviction keeps most recently inserted when no re-access" do
-    ExCellerate.Cache.put(LimitRegistry, "x", :val_x)
-    ExCellerate.Cache.put(LimitRegistry, "y", :val_y)
-    ExCellerate.Cache.put(LimitRegistry, "z", :val_z)
+    ExCellerate.Cache.put(LimitRegistry, "x", :val_x, nil)
+    ExCellerate.Cache.put(LimitRegistry, "y", :val_y, nil)
+    ExCellerate.Cache.put(LimitRegistry, "z", :val_z, nil)
 
     # "x" was inserted first and never re-accessed — should be evicted
     assert :error = ExCellerate.Cache.get(LimitRegistry, "x")
