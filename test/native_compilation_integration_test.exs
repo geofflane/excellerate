@@ -1,7 +1,8 @@
-# INVARIANT: any test in this file that starts the global ExCellerate.NativeCompiler,
-# or stops/restarts the global ExCellerate.Cache, MUST be `async: false`. These are
-# globally-named singletons consumed by the public ExCellerate.compile/2; running such
-# tests concurrently with async tests causes races over the shared registered names.
+# INVARIANT: any test in this file that starts the global ExCellerate.NativeCompiler
+# MUST be `async: false`. It is a globally-named singleton consumed by the public
+# ExCellerate.compile/2; running such tests concurrently with async tests would race
+# over the shared registered name. (At test boot the global compilation strategy is
+# unset/Interpreted, so the application does not auto-start a competing instance.)
 defmodule ExCellerate.NativeCompilationIntegrationTest do
   use ExUnit.Case, async: false
 
@@ -9,30 +10,18 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
   alias ExCellerate.Test.NoNativeRegistry
 
   setup do
-    # test_helper.exs starts a global ExCellerate.Cache; stop it so the
-    # supervisor can own both children cleanly. Restore it on exit so other
-    # (randomly ordered) test files still find a running Cache.
-    if pid = Process.whereis(ExCellerate.Cache), do: GenServer.stop(pid)
+    # Reuse the global ExCellerate.Cache (started by test_helper.exs). The test
+    # env disables the application's auto-start of NativeCompiler, so start it
+    # here with a small purge grace for deterministic eviction.
+    case ExCellerate.Cache.start_link() do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
 
-    # Small grace so the eviction/release purge fires quickly and the test
-    # stays deterministic without a long sleep.
-    Application.put_env(:excellerate, :native_purge_grace_ms, 20)
-    start_supervised!(ExCellerate.Supervisor)
     Cache.clear()
+    start_supervised!({NativeCompiler, native_purge_grace_ms: 20})
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
-
-    on_exit(fn ->
-      Application.delete_env(:excellerate, :compilation)
-      Application.delete_env(:excellerate, :native_purge_grace_ms)
-
-      # start_supervised tears down the supervised Cache; bring the global one
-      # back up for subsequent test files.
-      case ExCellerate.Cache.start_link() do
-        {:ok, _pid} -> :ok
-        {:error, {:already_started, _pid}} -> :ok
-      end
-    end)
-
+    on_exit(fn -> Application.delete_env(:excellerate, :compilation) end)
     :ok
   end
 

@@ -20,13 +20,13 @@ end
 
 ### Performance, Caching & Native Compilation
 
-ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. To enable caching (and native compilation, below), add `ExCellerate.Supervisor` to your application's supervision tree as a single child:
+ExCellerate caches compiled functions in an ETS-backed LRU (Least Recently Used) cache for fast repeated evaluations. When the cache reaches its size limit, the least recently accessed entries are evicted first, ensuring frequently-used expressions stay cached. Caching is opt-in: add `ExCellerate.Cache` to your application's supervision tree.
 
 ```elixir
 # In your Application module (e.g., lib/my_app/application.ex)
 def start(_type, _args) do
   children = [
-    ExCellerate.Supervisor,   # starts ExCellerate.Cache + ExCellerate.NativeCompiler
+    ExCellerate.Cache,   # opt-in compiled-expression cache
     # ... your other children
   ]
 
@@ -34,18 +34,18 @@ def start(_type, _args) do
 end
 ```
 
-If you don't start it, ExCellerate still works — expressions are parsed, compiled, and evaluated on every call via the interpreter.
+If you don't start `ExCellerate.Cache`, ExCellerate still works — expressions are parsed and compiled on every call instead of being cached.
 
-#### Native compilation
+#### Compilation strategy
 
 How an expression is executed is a pluggable **compilation strategy** (`ExCellerate.Compilation.Strategy`). Two are built in:
 
-- **`ExCellerate.Compilation.NativeCompiled`** (the default) — when `ExCellerate.NativeCompiler` is running (started by `ExCellerate.Supervisor`), each expression is compiled into a real, loaded BEAM module and evaluated as compiled code rather than walked by the Elixir interpreter. For repeatedly-evaluated expressions this is dramatically faster (single-digit-to-100×, depending on the expression) and allocates far less per call. It is transparent: results are identical to the interpreted path, and if the `NativeCompiler` isn't running it silently falls back to the interpreter.
-- **`ExCellerate.Compilation.Interpreted`** — evaluates via an interpreted `Code.eval_quoted/3` closure (ExCellerate's original path). Slower per call, but creates no BEAM module and consumes no atoms per expression.
+- **`ExCellerate.Compilation.Interpreted`** (the **default**) — evaluates via an interpreted `Code.eval_quoted/3` closure. Creates no BEAM module and consumes no atoms per expression. Safe for any input, and the best choice for expressions evaluated only a few times (where compiling wouldn't pay off).
+- **`ExCellerate.Compilation.NativeCompiled`** — compiles each expression into a real, loaded BEAM module and evaluates it as compiled code. For repeatedly-evaluated expressions this is dramatically faster (single-digit-to-100×, depending on the expression) and allocates far less per call. Results are identical to the interpreted path.
 
-Select a strategy globally with `config :excellerate, compilation: <module>` or per-registry with `use ExCellerate.Registry, compilation: <module>`.
+Opt into native compilation globally with `config :excellerate, compilation: ExCellerate.Compilation.NativeCompiled`, or per-registry with `use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled`. When the **global** strategy is `NativeCompiled`, the `ExCellerate.NativeCompiler` process it needs is **started automatically by the `:excellerate` application** — you don't add anything to your supervision tree for it. (If you opt in only on a single registry while the global default stays `Interpreted`, the process isn't auto-started and that registry falls back to the interpreter with a one-time warning; set the global strategy to `NativeCompiled` to guarantee the process.)
 
-**Important — which strategy to use.** `NativeCompiled` is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), select `ExCellerate.Compilation.Interpreted`, which allocates no atoms per expression.
+**Important — when to use `NativeCompiled`.** It is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), keep the default `Interpreted` strategy, which allocates no atoms per expression.
 
 ### Configuring Caching in a Registry
 
@@ -57,11 +57,11 @@ defmodule MyRegistry do
     plugins: [...],
     cache_enabled: true,        # Default: true
     cache_limit: 5000,          # Default: 1000
-    compilation: ExCellerate.Compilation.NativeCompiled  # Default; use .Interpreted for unbounded/untrusted input
+    compilation: ExCellerate.Compilation.NativeCompiled  # Default: Interpreted; opt this registry into native
 end
 ```
 
-If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression. Set `compilation: ExCellerate.Compilation.Interpreted` to force the interpreter for this registry (recommended when the registry evaluates an unbounded or untrusted set of expressions — see the atom note above).
+If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression. The default strategy is `Interpreted`; set `compilation: ExCellerate.Compilation.NativeCompiled` to opt this registry into native compilation (for a bounded/trusted set of expressions evaluated many times — see the atom note above).
 
 When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
 
@@ -73,12 +73,12 @@ While per-registry configuration is preferred, you can still provide global defa
 config :excellerate,
   cache_enabled: true,
   cache_limit: 1000,
-  compilation: ExCellerate.Compilation.NativeCompiled,  # strategy (default); or .Interpreted
+  compilation: ExCellerate.Compilation.Interpreted,  # strategy; default Interpreted, or .NativeCompiled
   native_module_limit: 4096,   # max live compiled-module name slots (bounds module memory)
   native_purge_grace_ms: 1000  # delay before purging an evicted module's code
 ```
 
-The `NativeCompiled` strategy only takes effect when `ExCellerate.NativeCompiler` is running (via `ExCellerate.Supervisor`); otherwise expressions are interpreted regardless. See the strategy note above for the atom-cost caveat.
+`native_module_limit` and `native_purge_grace_ms` only matter when you opt into the `NativeCompiled` strategy. See the strategy note above for the atom-cost caveat.
 
 ### Custom Registries and Overrides
 

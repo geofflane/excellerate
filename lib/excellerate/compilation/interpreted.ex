@@ -6,7 +6,9 @@ defmodule ExCellerate.Compilation.Interpreted do
   No BEAM module is created, so it consumes no atoms per expression — the right
   choice for unbounded or untrusted expression input. This is ExCellerate's
   original execution path. Slower per call than `ExCellerate.Compilation.NativeCompiled`,
-  but with no compile cost and no atom growth.
+  but with no compile cost and no atom growth — which also makes it preferable for
+  expressions evaluated only a few times, where native's one-time compile cost
+  would not pay off.
   """
   @behaviour ExCellerate.Compilation.Strategy
 

@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Pluggable compilation strategies (`ExCellerate.Compilation.Strategy`): `ExCellerate.Compilation.NativeCompiled` (default) compiles each expression into a real BEAM module and evaluates it as compiled code (substantially faster on the warm path, much lower per-call allocation); `ExCellerate.Compilation.Interpreted` uses the interpreter. Native requires `ExCellerate.NativeCompiler` to be running and falls back to the interpreter otherwise. Native is intended for a bounded, trusted set of expressions — each distinct natively-compiled expression consumes ~1 atom (see the README); use the `Interpreted` strategy for unbounded/untrusted input.
-- `ExCellerate.Supervisor` — an opt-in supervisor that starts `ExCellerate.Cache` and `ExCellerate.NativeCompiler` as a single child.
+- Pluggable compilation strategies (`ExCellerate.Compilation.Strategy`): `ExCellerate.Compilation.Interpreted` (default) uses the interpreter; `ExCellerate.Compilation.NativeCompiled` compiles each expression into a real BEAM module and evaluates it as compiled code (substantially faster on the warm path, much lower per-call allocation). Opt into native globally or per-registry. Native is intended for a bounded, trusted set of expressions — each distinct natively-compiled expression consumes ~1 atom (see the README); the default `Interpreted` strategy is the safe choice for unbounded/untrusted input.
+- When the global `compilation` strategy is `NativeCompiled`, the `ExCellerate.NativeCompiler` process is started automatically by the `:excellerate` application, so opting into native compilation requires no supervision wiring. The `ExCellerate.Cache` remains opt-in — add it to your supervision tree.
 - Configuration: `compilation` strategy (global and per-registry), `native_module_limit`, and `native_purge_grace_ms`.
 - Configurable resource limits: `max_expression_length` (default 10,000 bytes), `max_expression_depth` (default 100), and `max_factorial_input` (default 10,000).
 

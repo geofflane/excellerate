@@ -302,26 +302,33 @@ defmodule ExCellerate do
   How an expression is executed is a pluggable strategy
   (`ExCellerate.Compilation.Strategy`). Two are built in:
 
-    * `ExCellerate.Compilation.NativeCompiled` (**default**) — compiles each
-      expression into a real BEAM module and evaluates it as compiled code:
-      substantially faster on the warm path with much lower per-call allocation.
-      Requires `ExCellerate.NativeCompiler` to be running (start it via
-      `ExCellerate.Supervisor`); it transparently falls back to the interpreter
-      when not running. Each distinct compiled expression permanently consumes
-      ~1 atom (an artifact of runtime module creation — the module pool bounds
-      live module memory, not the atom table), so use it for a **bounded,
-      trusted** set of expressions.
-    * `ExCellerate.Compilation.Interpreted` — evaluates via an interpreted
-      `Code.eval_quoted/3` closure. No atoms per expression; the right choice for
-      **unbounded or untrusted** input.
+    * `ExCellerate.Compilation.Interpreted` (**default**) — evaluates via an
+      interpreted `Code.eval_quoted/3` closure. No atoms per expression. Safe for
+      any input, and best for expressions evaluated only a few times where
+      native's one-time compile cost would not amortize.
+    * `ExCellerate.Compilation.NativeCompiled` — compiles each expression into a
+      real BEAM module and evaluates it as compiled code: substantially faster on
+      the warm path with much lower per-call allocation. Each distinct compiled
+      expression permanently consumes ~1 atom (an artifact of runtime module
+      creation — the module pool bounds live module memory, not the atom table),
+      so use it for a **bounded, trusted** set of expressions.
 
-  Override the default globally or per-registry:
+  Opt into native compilation globally or per-registry:
 
-      config :excellerate, compilation: ExCellerate.Compilation.Interpreted
+      config :excellerate, compilation: ExCellerate.Compilation.NativeCompiled
 
-      use ExCellerate.Registry, compilation: ExCellerate.Compilation.Interpreted
+      use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled
 
-  See the README for the `native_module_limit` / `native_purge_grace_ms` knobs.
+  When the **global** strategy is `NativeCompiled`, the `ExCellerate.NativeCompiler`
+  process it needs is started automatically by the `:excellerate` application — no
+  supervision wiring required. (If you only opt a single registry into native
+  while the global default stays `Interpreted`, the process is not auto-started;
+  that registry then degrades to the interpreter with a one-time warning. Set the
+  global strategy to `NativeCompiled` to guarantee the process.)
+
+  The `ExCellerate.Cache` (compiled-function cache) is separate and opt-in — add
+  it to your own supervision tree. See the README for the `native_module_limit` /
+  `native_purge_grace_ms` knobs.
   """
 
   alias ExCellerate.Compiler
@@ -484,7 +491,7 @@ defmodule ExCellerate do
     end
   end
 
-  @default_strategy ExCellerate.Compilation.NativeCompiled
+  @default_strategy ExCellerate.Compilation.Interpreted
 
   # Parses and compiles an expression string into a reusable function.
   # Returns `{:ok, fun, mod_name}` where `mod_name` is the BEAM module backing

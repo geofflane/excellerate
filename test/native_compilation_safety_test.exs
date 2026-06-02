@@ -24,39 +24,31 @@ defmodule ExCellerate.NativeCompilationSafetyTest do
 
   alias ExCellerate.{Cache, NativeCompiler}
 
-  # Mirrors the stop/restore-Cache + supervisor-start mechanics from
-  # test/native_compilation_integration_test.exs. Each test overrides the
-  # limits/grace via Application.put_env BEFORE start_supervised! so the
-  # supervisor's children pick them up.
+  # Reuses the global ExCellerate.Cache (from test_helper) and starts a
+  # NativeCompiler with per-test pool limit + grace. The test env disables the
+  # application's auto-start of NativeCompiler, so there is no competing instance.
   defp setup_supervisor(opts) do
     cache_limit = Keyword.fetch!(opts, :cache_limit)
     module_limit = Keyword.fetch!(opts, :module_limit)
     grace_ms = Keyword.fetch!(opts, :grace_ms)
 
-    # test_helper.exs starts a global ExCellerate.Cache; stop it so the
-    # supervisor can own both children cleanly. Restored on exit below.
-    if pid = Process.whereis(ExCellerate.Cache), do: GenServer.stop(pid)
+    case ExCellerate.Cache.start_link() do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+    end
 
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
     Application.put_env(:excellerate, :cache_limit, cache_limit)
-    Application.put_env(:excellerate, :native_module_limit, module_limit)
-    Application.put_env(:excellerate, :native_purge_grace_ms, grace_ms)
 
-    start_supervised!(ExCellerate.Supervisor)
+    start_supervised!(
+      {NativeCompiler, native_module_limit: module_limit, native_purge_grace_ms: grace_ms}
+    )
+
     Cache.clear()
 
     on_exit(fn ->
       Application.delete_env(:excellerate, :compilation)
       Application.delete_env(:excellerate, :cache_limit)
-      Application.delete_env(:excellerate, :native_module_limit)
-      Application.delete_env(:excellerate, :native_purge_grace_ms)
-
-      # start_supervised tears down the supervised Cache; bring the global one
-      # back up for subsequent (randomly ordered) test files.
-      case ExCellerate.Cache.start_link() do
-        {:ok, _pid} -> :ok
-        {:error, {:already_started, _pid}} -> :ok
-      end
     end)
 
     :ok

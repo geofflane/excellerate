@@ -40,7 +40,7 @@ defmodule ExCellerate.Registry do
     plugins = Keyword.get(opts, :plugins, [])
     cache_enabled = Keyword.get(opts, :cache_enabled, true)
     cache_limit = Keyword.get(opts, :cache_limit, 1000)
-    compilation = Keyword.get(opts, :compilation, ExCellerate.Compilation.NativeCompiled)
+    compilation = Keyword.get(opts, :compilation, ExCellerate.Compilation.Interpreted)
 
     quote do
       @plugins unquote(plugins)
