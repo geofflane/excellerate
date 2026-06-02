@@ -38,9 +38,14 @@ If you don't start it, ExCellerate still works — expressions are parsed, compi
 
 #### Native compilation
 
-When `ExCellerate.NativeCompiler` is running (started by `ExCellerate.Supervisor`) and `native_compilation` is enabled (the default), each expression is compiled into a real, loaded BEAM module and evaluated as compiled code, rather than walked by the Elixir interpreter. For repeatedly-evaluated expressions this is dramatically faster (single-digit-to-100×, depending on the expression) and allocates far less per call. Native compilation is a transparent optimization: results are identical to the interpreted path, and if the `NativeCompiler` isn't running it silently falls back to the interpreter.
+How an expression is executed is a pluggable **compilation strategy** (`ExCellerate.Compilation.Strategy`). Two are built in:
 
-**Important — when to use it.** Native compilation is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **Do not enable native compilation for unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety) — set `native_compilation: false` there and use the interpreter, which allocates no atoms per expression.
+- **`ExCellerate.Compilation.NativeCompiled`** (the default) — when `ExCellerate.NativeCompiler` is running (started by `ExCellerate.Supervisor`), each expression is compiled into a real, loaded BEAM module and evaluated as compiled code rather than walked by the Elixir interpreter. For repeatedly-evaluated expressions this is dramatically faster (single-digit-to-100×, depending on the expression) and allocates far less per call. It is transparent: results are identical to the interpreted path, and if the `NativeCompiler` isn't running it silently falls back to the interpreter.
+- **`ExCellerate.Compilation.Interpreted`** — evaluates via an interpreted `Code.eval_quoted/3` closure (ExCellerate's original path). Slower per call, but creates no BEAM module and consumes no atoms per expression.
+
+Select a strategy globally with `config :excellerate, compilation: <module>` or per-registry with `use ExCellerate.Registry, compilation: <module>`.
+
+**Important — which strategy to use.** `NativeCompiled` is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), select `ExCellerate.Compilation.Interpreted`, which allocates no atoms per expression.
 
 ### Configuring Caching in a Registry
 
@@ -52,11 +57,11 @@ defmodule MyRegistry do
     plugins: [...],
     cache_enabled: true,        # Default: true
     cache_limit: 5000,          # Default: 1000
-    native_compilation: true    # Default: true (set false for unbounded/untrusted input)
+    compilation: ExCellerate.Compilation.NativeCompiled  # Default; use .Interpreted for unbounded/untrusted input
 end
 ```
 
-If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression. Set `native_compilation: false` to force the interpreter for this registry (recommended when the registry evaluates an unbounded or untrusted set of expressions — see the atom note above).
+If `cache_enabled` is set to `false`, every call to `eval/2` will re-parse and re-compile the expression. Set `compilation: ExCellerate.Compilation.Interpreted` to force the interpreter for this registry (recommended when the registry evaluates an unbounded or untrusted set of expressions — see the atom note above).
 
 When the number of cached expressions for a registry exceeds `cache_limit`, the least recently used entries are evicted. Each cache hit updates the entry's last-accessed timestamp, so frequently-used expressions are retained even if they were first compiled long ago.
 
@@ -68,12 +73,12 @@ While per-registry configuration is preferred, you can still provide global defa
 config :excellerate,
   cache_enabled: true,
   cache_limit: 1000,
-  native_compilation: true,    # compile expressions to native BEAM modules (default true)
+  compilation: ExCellerate.Compilation.NativeCompiled,  # strategy (default); or .Interpreted
   native_module_limit: 4096,   # max live compiled-module name slots (bounds module memory)
   native_purge_grace_ms: 1000  # delay before purging an evicted module's code
 ```
 
-`native_compilation` only takes effect when `ExCellerate.NativeCompiler` is running (via `ExCellerate.Supervisor`); otherwise expressions are interpreted. See the native-compilation note above for the atom-cost caveat.
+The `NativeCompiled` strategy only takes effect when `ExCellerate.NativeCompiler` is running (via `ExCellerate.Supervisor`); otherwise expressions are interpreted regardless. See the strategy note above for the atom-cost caveat.
 
 ### Custom Registries and Overrides
 

@@ -297,23 +297,31 @@ defmodule ExCellerate do
   rejected at evaluation (a `:runtime` error). Raise the limits if your
   expressions are legitimately large, deeply nested, or need large factorials.
 
-  ## Native Compilation
+  ## Compilation Strategies
 
-  When `ExCellerate.NativeCompiler` is running (start it via
-  `ExCellerate.Supervisor`) and `native_compilation` is enabled (default), each
-  expression is compiled into a real BEAM module and evaluated as compiled code
-  instead of being walked by the interpreter — substantially faster on the warm
-  path with much lower per-call allocation. It is a transparent optimization:
-  results are identical, and it falls back to the interpreter when the
-  `NativeCompiler` is not running.
+  How an expression is executed is a pluggable strategy
+  (`ExCellerate.Compilation.Strategy`). Two are built in:
 
-  Use native compilation for a **bounded, trusted** set of expressions. Each
-  distinct natively-compiled expression permanently consumes ~1 atom (an
-  artifact of runtime module creation; the module pool bounds live module memory,
-  not the atom table). For **unbounded or untrusted** input set
-  `native_compilation: false` (globally or per-registry) and use the interpreter,
-  which allocates no atoms per expression. See the README for details and the
-  `native_module_limit` / `native_purge_grace_ms` knobs.
+    * `ExCellerate.Compilation.NativeCompiled` (**default**) — compiles each
+      expression into a real BEAM module and evaluates it as compiled code:
+      substantially faster on the warm path with much lower per-call allocation.
+      Requires `ExCellerate.NativeCompiler` to be running (start it via
+      `ExCellerate.Supervisor`); it transparently falls back to the interpreter
+      when not running. Each distinct compiled expression permanently consumes
+      ~1 atom (an artifact of runtime module creation — the module pool bounds
+      live module memory, not the atom table), so use it for a **bounded,
+      trusted** set of expressions.
+    * `ExCellerate.Compilation.Interpreted` — evaluates via an interpreted
+      `Code.eval_quoted/3` closure. No atoms per expression; the right choice for
+      **unbounded or untrusted** input.
+
+  Override the default globally or per-registry:
+
+      config :excellerate, compilation: ExCellerate.Compilation.Interpreted
+
+      use ExCellerate.Registry, compilation: ExCellerate.Compilation.Interpreted
+
+  See the README for the `native_module_limit` / `native_purge_grace_ms` knobs.
   """
 
   alias ExCellerate.Compiler
@@ -476,17 +484,17 @@ defmodule ExCellerate do
     end
   end
 
-  @default_native_compilation true
+  @default_strategy ExCellerate.Compilation.NativeCompiled
 
   # Parses and compiles an expression string into a reusable function.
-  # Returns `{:ok, fun, mod_name}` where `mod_name` is the native BEAM module
-  # backing the function (atom) or `nil` for an interpreted fallback.
+  # Returns `{:ok, fun, mod_name}` where `mod_name` is the BEAM module backing
+  # the function (atom) or `nil` when the chosen strategy created no module.
   defp compile_to_function(expression, registry) do
     case Parser.parse(expression) do
       {:ok, ast} ->
         try do
           elixir_ast = Compiler.compile(ast, registry)
-          {fun, mod_name} = build_fun(expression, registry, elixir_ast)
+          {fun, mod_name} = strategy(registry).build(registry, expression, elixir_ast)
           {:ok, fun, mod_name}
         rescue
           e -> {:error, e}
@@ -497,60 +505,16 @@ defmodule ExCellerate do
     end
   end
 
-  # Routes to native compilation when it is enabled AND the NativeCompiler
-  # process is running; otherwise builds a pure interpreted closure. The
-  # interpreted builder is pure (no process), so the fallback is always safe.
-  defp build_fun(expression, registry, elixir_ast) do
-    if native_enabled?(registry) and Process.whereis(ExCellerate.NativeCompiler) != nil do
-      try do
-        {:ok, fun, mod_name} =
-          ExCellerate.NativeCompiler.compile_cached(registry, expression, elixir_ast)
+  # Resolves the compilation strategy module (an `ExCellerate.Compilation.Strategy`)
+  # for this evaluation: per-registry config first, then the application-env
+  # default, then the built-in default (`NativeCompiled`).
+  defp strategy(nil), do: Application.get_env(:excellerate, :compilation, @default_strategy)
 
-        {fun, mod_name}
-      catch
-        # TOCTOU: the NativeCompiler can crash, be restarted by its supervisor, or
-        # time out between the whereis check above and this GenServer.call, which
-        # surfaces as an EXIT (`:noproc`, `:shutdown`, `:timeout`, ...). The
-        # enclosing compile_to_function/2 only `rescue`s, which does not catch
-        # exits. Native compilation is a transparent optimization, so we degrade to
-        # the pure interpreted builder (always safe) rather than crash the caller —
-        # this matters because eval/2 runs hundreds of times per game on the hot path.
-        :exit, reason ->
-          warn_native_unavailable_once(reason)
-          {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
-      end
-    else
-      {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
-    end
-  end
-
-  @native_warn_flag :excellerate_native_exit_warned
-
-  # Logs once (like Cache.maybe_warn_not_started/0) so a *persistent* NativeCompiler
-  # failure is diagnosable rather than silently degrading the hot path to the
-  # interpreter forever with no signal. A transient TOCTOU exit warns once and
-  # is otherwise harmless.
-  defp warn_native_unavailable_once(reason) do
-    unless :persistent_term.get(@native_warn_flag, false) do
-      :persistent_term.put(@native_warn_flag, true)
-      require Logger
-
-      Logger.warning(
-        "ExCellerate.NativeCompiler exited during compilation (#{inspect(reason)}); " <>
-          "falling back to interpreted evaluation. This warning is logged once."
-      )
-    end
-  end
-
-  defp native_enabled?(nil) do
-    Application.get_env(:excellerate, :native_compilation, @default_native_compilation)
-  end
-
-  defp native_enabled?(registry) do
+  defp strategy(registry) do
     if Code.ensure_loaded?(registry) and function_exported?(registry, :__excellerate_config__, 1) do
-      registry.__excellerate_config__(:native_compilation)
+      registry.__excellerate_config__(:compilation)
     else
-      Application.get_env(:excellerate, :native_compilation, @default_native_compilation)
+      Application.get_env(:excellerate, :compilation, @default_strategy)
     end
   end
 end

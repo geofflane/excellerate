@@ -15,6 +15,7 @@ defmodule ExCellerate.NativeCompiler do
 
   use GenServer
 
+  alias ExCellerate.Compilation.Interpreted
   alias ExCellerate.{Compiler, Parser}
   alias ExCellerate.NativeCompiler.Slots
 
@@ -141,11 +142,11 @@ defmodule ExCellerate.NativeCompiler do
                 # to the pool and fall back to an interpreted closure without
                 # recording it in by_key.
                 slots = Slots.free(slots, name)
-                {:reply, {:ok, build_interpreted_fun(elixir_ast), nil}, %{state | slots: slots}}
+                {:reply, {:ok, Interpreted.build_fun(elixir_ast), nil}, %{state | slots: slots}}
             end
 
           {:full, slots} ->
-            {:reply, {:ok, build_interpreted_fun(elixir_ast), nil}, %{state | slots: slots}}
+            {:reply, {:ok, Interpreted.build_fun(elixir_ast), nil}, %{state | slots: slots}}
         end
 
       mod ->
@@ -245,18 +246,6 @@ defmodule ExCellerate.NativeCompiler do
 
     Module.create(name, body, Macro.Env.location(__ENV__))
     Function.capture(name, :eval, 1)
-  end
-
-  @doc false
-  # Builds an interpreted closure via Code.eval_quoted/3, matching
-  # ExCellerate.compile_to_function/2. Its Function.info[:module] is :erl_eval.
-  # Public so ExCellerate.compile/2 can share it for the non-native path; it is
-  # pure (no process required).
-  def build_interpreted_fun(elixir_ast) do
-    scope_var = Compiler.scope_var()
-    fun_ast = {:fn, [], [{:->, [], [[scope_var], elixir_ast]}]}
-    {fun, _} = Code.eval_quoted(fun_ast, [], __ENV__)
-    fun
   end
 
   defp unique_module_name do

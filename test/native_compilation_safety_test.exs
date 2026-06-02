@@ -16,7 +16,7 @@
 # name is reused. So each DISTINCT natively-compiled expression costs ~1 atom.
 # Native compilation is therefore intended for bounded/trusted expression sets
 # (cache sized to hold them); it is NOT atom-safe for unbounded/untrusted input,
-# which should run with native_compilation disabled (the interpreted path leaks
+# which should run with the Interpreted strategy (the interpreted path leaks
 # no atoms). The third test below characterizes this cost so it can't regress
 # unnoticed.
 defmodule ExCellerate.NativeCompilationSafetyTest do
@@ -37,7 +37,7 @@ defmodule ExCellerate.NativeCompilationSafetyTest do
     # supervisor can own both children cleanly. Restored on exit below.
     if pid = Process.whereis(ExCellerate.Cache), do: GenServer.stop(pid)
 
-    Application.put_env(:excellerate, :native_compilation, true)
+    Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
     Application.put_env(:excellerate, :cache_limit, cache_limit)
     Application.put_env(:excellerate, :native_module_limit, module_limit)
     Application.put_env(:excellerate, :native_purge_grace_ms, grace_ms)
@@ -46,7 +46,7 @@ defmodule ExCellerate.NativeCompilationSafetyTest do
     Cache.clear()
 
     on_exit(fn ->
-      Application.delete_env(:excellerate, :native_compilation)
+      Application.delete_env(:excellerate, :compilation)
       Application.delete_env(:excellerate, :cache_limit)
       Application.delete_env(:excellerate, :native_module_limit)
       Application.delete_env(:excellerate, :native_purge_grace_ms)

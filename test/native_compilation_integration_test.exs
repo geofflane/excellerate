@@ -19,10 +19,10 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     Application.put_env(:excellerate, :native_purge_grace_ms, 20)
     start_supervised!(ExCellerate.Supervisor)
     Cache.clear()
-    Application.put_env(:excellerate, :native_compilation, true)
+    Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
 
     on_exit(fn ->
-      Application.delete_env(:excellerate, :native_compilation)
+      Application.delete_env(:excellerate, :compilation)
       Application.delete_env(:excellerate, :native_purge_grace_ms)
 
       # start_supervised tears down the supervised Cache; bring the global one
@@ -62,14 +62,14 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     assert stats.free >= 1
   end
 
-  test "native_compilation: false falls back to the interpreter" do
-    Application.put_env(:excellerate, :native_compilation, false)
+  test "the Interpreted strategy uses the interpreter" do
+    Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.Interpreted)
     {:ok, fun} = ExCellerate.compile("3 + 4")
     assert Function.info(fun)[:module] == :erl_eval
     assert fun.(%{}) == 7
   end
 
-  test "per-registry native_compilation: false overrides global native" do
+  test "a per-registry Interpreted strategy overrides the global default" do
     # Global is native (set in setup); the registry opts out.
     {:ok, reg_fun} = ExCellerate.compile("5 + 6", NoNativeRegistry)
     assert Function.info(reg_fun)[:module] == :erl_eval
@@ -102,8 +102,8 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
     end
 
     ExCellerate.Cache.clear()
-    Application.put_env(:excellerate, :native_compilation, true)
-    on_exit(fn -> Application.delete_env(:excellerate, :native_compilation) end)
+    Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
+    on_exit(fn -> Application.delete_env(:excellerate, :compilation) end)
     :ok
   end
 
