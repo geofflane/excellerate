@@ -497,11 +497,30 @@ defmodule ExCellerate do
         # exits. Native compilation is a transparent optimization, so we degrade to
         # the pure interpreted builder (always safe) rather than crash the caller —
         # this matters because eval/2 runs hundreds of times per game on the hot path.
-        :exit, _ ->
+        :exit, reason ->
+          warn_native_unavailable_once(reason)
           {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
       end
     else
       {ExCellerate.NativeCompiler.build_interpreted_fun(elixir_ast), nil}
+    end
+  end
+
+  @native_warn_flag :excellerate_native_exit_warned
+
+  # Logs once (like Cache.maybe_warn_not_started/0) so a *persistent* NativeCompiler
+  # failure is diagnosable rather than silently degrading the hot path to the
+  # interpreter forever with no signal. A transient TOCTOU exit warns once and
+  # is otherwise harmless.
+  defp warn_native_unavailable_once(reason) do
+    unless :persistent_term.get(@native_warn_flag, false) do
+      :persistent_term.put(@native_warn_flag, true)
+      require Logger
+
+      Logger.warning(
+        "ExCellerate.NativeCompiler exited during compilation (#{inspect(reason)}); " <>
+          "falling back to interpreted evaluation. This warning is logged once."
+      )
     end
   end
 
