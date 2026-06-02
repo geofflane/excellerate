@@ -6,9 +6,11 @@ defmodule ExCellerate.Compilation.NativeCompiled do
   the interpreter. Opt in with `config :excellerate, compilation: __MODULE__`
   (the default strategy is `ExCellerate.Compilation.Interpreted`).
 
-  The `ExCellerate.NativeCompiler` process this needs is started automatically by
-  the `:excellerate` application, so no supervision wiring is required. If it is
-  not running — or a transient race causes the compile call to exit — this
+  The `ExCellerate.NativeCompiler` process this needs is started on demand the
+  first time a native compile is requested (supervised by the `:excellerate`
+  application's `ExCellerate.Supervisor`), so no supervision wiring is required
+  and native works whether selected globally or only on a single registry. If it
+  cannot be started — or a transient race causes the compile call to exit — this
   strategy degrades to `ExCellerate.Compilation.Interpreted` rather than crashing
   the caller; native compilation is a transparent optimization, never a
   correctness dependency.
@@ -26,21 +28,27 @@ defmodule ExCellerate.Compilation.NativeCompiled do
 
   @impl true
   def build(registry, expression, elixir_ast) do
-    if Process.whereis(NativeCompiler) != nil do
-      try do
-        {:ok, fun, mod_name} = NativeCompiler.compile_cached(registry, expression, elixir_ast)
-        {fun, mod_name}
-      catch
-        # TOCTOU: NativeCompiler can crash, be restarted by its supervisor, or
-        # time out between the whereis check above and this GenServer.call,
-        # surfacing as an EXIT (`:noproc`, `:shutdown`, `:timeout`, ...). Degrade
-        # to the pure interpreted closure rather than crash the (hot-path) caller.
-        :exit, reason ->
-          warn_unavailable_once(reason)
-          {Interpreted.build_fun(elixir_ast), nil}
-      end
-    else
-      {Interpreted.build_fun(elixir_ast), nil}
+    case ExCellerate.Supervisor.ensure_native_compiler() do
+      {:ok, _pid} ->
+        try do
+          {:ok, fun, mod_name} = NativeCompiler.compile_cached(registry, expression, elixir_ast)
+          {fun, mod_name}
+        catch
+          # TOCTOU: NativeCompiler can crash, be restarted, or time out between
+          # ensure_native_compiler/0 above and this GenServer.call, surfacing as
+          # an EXIT (`:noproc`, `:shutdown`, `:timeout`, ...). Degrade to the pure
+          # interpreted closure rather than crash the (hot-path) caller.
+          :exit, reason ->
+            warn_unavailable_once(reason)
+            {Interpreted.build_fun(elixir_ast), nil}
+        end
+
+      :error ->
+        # The compiler could not be started (e.g. the :excellerate application /
+        # ExCellerate.Supervisor is not running). Native is a transparent
+        # optimization, so fall back to the interpreter.
+        warn_unavailable_once(:native_compiler_unavailable)
+        {Interpreted.build_fun(elixir_ast), nil}
     end
   end
 

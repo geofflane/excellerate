@@ -74,33 +74,61 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
 end
 
 defmodule ExCellerate.NativeCompilationFallbackTest do
-  # Separate module WITHOUT the supervisor so NativeCompiler is not running:
-  # compile/2 must still work and yield an interpreted (:erl_eval) fun.
+  # The :excellerate application runs ExCellerate.Supervisor (an empty
+  # DynamicSupervisor); NativeCompiler is started lazily on first native use.
+  # These tests cover that lazy start and the graceful fallback when the compiler
+  # call exits (the TOCTOU race). async: false — they touch the global singletons.
   use ExUnit.Case, async: false
 
   setup do
-    # Cache may or may not be running (test_helper starts it). Ensure
-    # NativeCompiler is NOT running for this test.
-    if pid = Process.whereis(ExCellerate.NativeCompiler) do
-      GenServer.stop(pid)
-    end
-
     case ExCellerate.Cache.start_link() do
       {:ok, _pid} -> :ok
       {:error, {:already_started, _pid}} -> :ok
     end
 
     ExCellerate.Cache.clear()
+    stop_native_compiler()
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
-    on_exit(fn -> Application.delete_env(:excellerate, :compilation) end)
+
+    on_exit(fn ->
+      Application.delete_env(:excellerate, :compilation)
+      stop_native_compiler()
+    end)
+
     :ok
   end
 
-  test "compile/2 works and yields an interpreted fun when NativeCompiler not running" do
+  # Ensure no NativeCompiler is registered: terminate a lazily-started one under
+  # the app supervisor (a :permanent child would restart on GenServer.stop), or
+  # kill anything else registered under the name (e.g. a test's dummy process).
+  defp stop_native_compiler do
+    case Process.whereis(ExCellerate.NativeCompiler) do
+      nil ->
+        :ok
+
+      pid ->
+        case DynamicSupervisor.terminate_child(ExCellerate.Supervisor, pid) do
+          :ok -> :ok
+          {:error, :not_found} -> Process.exit(pid, :kill)
+        end
+
+        :ok
+    end
+  end
+
+  test "compile/2 lazily starts NativeCompiler and compiles natively under NativeCompiled" do
     refute Process.whereis(ExCellerate.NativeCompiler)
+
     {:ok, fun} = ExCellerate.compile("7 + 8")
-    assert Function.info(fun)[:module] == :erl_eval
     assert fun.(%{}) == 15
+    assert Function.info(fun)[:type] == :external
+
+    assert Function.info(fun)[:module]
+           |> Atom.to_string()
+           |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+
+    # The compiler was started on demand — no manual supervision wiring.
+    assert Process.whereis(ExCellerate.NativeCompiler)
   end
 
   test "falls back to interpreter if NativeCompiler name is owned by a non-GenServer (race safety)" do

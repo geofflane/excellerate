@@ -319,12 +319,10 @@ defmodule ExCellerate do
 
       use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled
 
-  When the **global** strategy is `NativeCompiled`, the `ExCellerate.NativeCompiler`
-  process it needs is started automatically by the `:excellerate` application — no
-  supervision wiring required. (If you only opt a single registry into native
-  while the global default stays `Interpreted`, the process is not auto-started;
-  that registry then degrades to the interpreter with a one-time warning. Set the
-  global strategy to `NativeCompiled` to guarantee the process.)
+  The `ExCellerate.NativeCompiler` process it needs is started on demand the first
+  time a native compile happens (supervised by the `:excellerate` application), so
+  there is no supervision wiring and it works whether native is selected globally
+  or only on a single registry. Nothing is started for interpreted-only use.
 
   The `ExCellerate.Cache` (compiled-function cache) is separate and opt-in — add
   it to your own supervision tree. See the README for the `native_module_limit` /
