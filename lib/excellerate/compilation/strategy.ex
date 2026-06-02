@@ -5,13 +5,15 @@ defmodule ExCellerate.Compilation.Strategy do
 
   Built-in strategies:
 
-    * `ExCellerate.Compilation.NativeCompiled` (default) — compiles each
-      expression into a real, loaded BEAM module for near-native speed. Each
-      distinct expression consumes ~1 permanent atom, so use it for a bounded,
-      trusted set of expressions.
-    * `ExCellerate.Compilation.Interpreted` — evaluates via an interpreted
-      `Code.eval_quoted/3` closure. Slower per call, but consumes no atoms per
-      expression — the right choice for unbounded or untrusted input.
+    * `ExCellerate.Compilation.Interpreted` (**default**) — evaluates via an
+      interpreted `Code.eval_quoted/3` closure. Consumes no atoms per expression;
+      the right choice for unbounded or untrusted input, and for expressions
+      evaluated only a few times.
+    * `ExCellerate.Compilation.NativeCompiled` — compiles each expression into a
+      real, loaded BEAM module and evaluates it as compiled code (much faster on
+      the warm path, far lower per-call allocation). Each distinct compiled
+      expression consumes ~1 permanent atom, so use it for a bounded, trusted set
+      of expressions evaluated many times.
 
   Select one globally with `config :excellerate, compilation: <strategy module>`
   or per-registry with `use ExCellerate.Registry, compilation: <strategy module>`.
