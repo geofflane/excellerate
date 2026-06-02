@@ -1,5 +1,9 @@
 defmodule ExCellerate.NativeCompilerTest do
-  use ExUnit.Case, async: true
+  # async: false — these tests register a globally-named ExCellerate.NativeCompiler
+  # process, which ExCellerate.compile/2 consults. Running concurrently with other
+  # test files that call ExCellerate.eval/compile would let those calls dispatch
+  # into a NativeCompiler that is mid-shutdown, exiting their GenServer.call.
+  use ExUnit.Case, async: false
 
   alias ExCellerate.NativeCompiler
 

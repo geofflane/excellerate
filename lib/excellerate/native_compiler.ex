@@ -247,9 +247,12 @@ defmodule ExCellerate.NativeCompiler do
     Function.capture(name, :eval, 1)
   end
 
+  @doc false
   # Builds an interpreted closure via Code.eval_quoted/3, matching
   # ExCellerate.compile_to_function/2. Its Function.info[:module] is :erl_eval.
-  defp build_interpreted_fun(elixir_ast) do
+  # Public so ExCellerate.compile/2 can share it for the non-native path; it is
+  # pure (no process required).
+  def build_interpreted_fun(elixir_ast) do
     scope_var = Compiler.scope_var()
     fun_ast = {:fn, [], [{:->, [], [[scope_var], elixir_ast]}]}
     {fun, _} = Code.eval_quoted(fun_ast, [], __ENV__)

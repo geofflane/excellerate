@@ -40,11 +40,13 @@ defmodule ExCellerate.Registry do
     plugins = Keyword.get(opts, :plugins, [])
     cache_enabled = Keyword.get(opts, :cache_enabled, true)
     cache_limit = Keyword.get(opts, :cache_limit, 1000)
+    native_compilation = Keyword.get(opts, :native_compilation, true)
 
     quote do
       @plugins unquote(plugins)
       @cache_enabled unquote(cache_enabled)
       @cache_limit unquote(cache_limit)
+      @native_compilation unquote(native_compilation)
       @before_compile ExCellerate.Registry
 
       @doc """
@@ -71,6 +73,7 @@ defmodule ExCellerate.Registry do
       """
       def __excellerate_config__(:cache_enabled), do: @cache_enabled
       def __excellerate_config__(:cache_limit), do: @cache_limit
+      def __excellerate_config__(:native_compilation), do: @native_compilation
     end
   end
 
