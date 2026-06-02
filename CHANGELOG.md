@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Native compilation: when `ExCellerate.NativeCompiler` is running, expressions are compiled into real BEAM modules and evaluated as compiled code (substantially faster on the warm path, much lower per-call allocation). Enabled by default; falls back to the interpreter when not running. Intended for a bounded, trusted set of expressions — see the README (each distinct natively-compiled expression consumes ~1 atom).
+- `ExCellerate.Supervisor` — an opt-in supervisor that starts `ExCellerate.Cache` and `ExCellerate.NativeCompiler` as a single child.
+- Configuration: `native_compilation` (global and per-registry), `native_module_limit`, and `native_purge_grace_ms`.
+- Configurable resource limits: `max_expression_length` (default 10,000 bytes), `max_expression_depth` (default 100), and `max_factorial_input` (default 10,000).
+
+### Changed
+
+- `factorial` is now tail-recursive and rejects operands above `max_factorial_input`.
+- Documentation: described caching and compilation accurately (removed the inaccurate "near-native performance" / "native execution speed" claims, which did not match the interpreted `Code.eval_quoted` path).
+
+### Security
+
+- Reject oversized expressions (`max_expression_length`) before parsing and deeply-nested expressions (`max_expression_depth`) before compilation, preventing parse/compile resource exhaustion from adversarial input.
+- Cap the `factorial` operand to prevent CPU/memory exhaustion from a tiny input (e.g. `999999999!`).
+
 ## [0.3.0] - 2026-03-11
 
 ### Added

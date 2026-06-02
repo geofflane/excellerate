@@ -296,6 +296,24 @@ defmodule ExCellerate do
   `:compiler` error); a factorial operand above `max_factorial_input` is
   rejected at evaluation (a `:runtime` error). Raise the limits if your
   expressions are legitimately large, deeply nested, or need large factorials.
+
+  ## Native Compilation
+
+  When `ExCellerate.NativeCompiler` is running (start it via
+  `ExCellerate.Supervisor`) and `native_compilation` is enabled (default), each
+  expression is compiled into a real BEAM module and evaluated as compiled code
+  instead of being walked by the interpreter — substantially faster on the warm
+  path with much lower per-call allocation. It is a transparent optimization:
+  results are identical, and it falls back to the interpreter when the
+  `NativeCompiler` is not running.
+
+  Use native compilation for a **bounded, trusted** set of expressions. Each
+  distinct natively-compiled expression permanently consumes ~1 atom (an
+  artifact of runtime module creation; the module pool bounds live module memory,
+  not the atom table). For **unbounded or untrusted** input set
+  `native_compilation: false` (globally or per-registry) and use the interpreter,
+  which allocates no atoms per expression. See the README for details and the
+  `native_module_limit` / `native_purge_grace_ms` knobs.
   """
 
   alias ExCellerate.Compiler

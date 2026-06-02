@@ -270,3 +270,46 @@ per-play evaluation loop that is a major reduction in GC pressure independent of
 raw speed. The bounded module-name slot pool + grace-period soft-purge (Phase 2)
 still bound atoms and memory. Phase 2 (Tasks 5–10) proceeds as written; the
 grace-purge delay can be short since evals are sub- to low-microsecond.
+
+## Correction (2026-06-02): `Module.create` interns ~1 atom per call
+
+**A core atom-safety assumption above is WRONG.** Empirically verified during
+Task 9: `Module.create/3` interns **one permanent atom per call, even when the
+module name is reused** (3000 creates of a single reused name → +3000 atoms;
+soft_purge vs hard purge makes no difference). The interpreted `Code.eval_quoted`
+path, by contrast, leaks **zero** atoms.
+
+Consequences — what the slot pool actually does:
+
+- The slot pool **bounds live module CODE/memory** (`minted ≤ native_module_limit`,
+  modules purged + names reused on eviction). That part is real and works.
+- The slot pool does **NOT** bound the **atom table**. Each DISTINCT expression
+  that is natively compiled costs ~1 permanent atom, churn or not. Under
+  unbounded distinct input the atom table grows ~1/expr (slow: ~1M distinct
+  expressions to exhaust the default table, irreversible).
+
+Therefore the earlier claims that compile-every is "atom-exhaustion safe under
+unbounded distinct untrusted input via the slot pool" are **false**. Native
+compilation is safe against *code/memory* growth, not *atom* growth.
+
+**Decision (2026-06-02): SHIP anyway, with corrected docs + tests.** For the
+target workload — a bounded, trusted set of formulas, each compiled once and
+cached (cache sized to hold them, so no eviction churn) — total atoms = number
+of distinct formulas, once. Bounded and negligible. The 4–116× speedup and the
+per-eval allocation drop stand. The remediation is documentation + tests, not a
+code change:
+
+- `native_compilation` ships **on by default** but only activates when the opt-in
+  `ExCellerate.Supervisor` (or `NativeCompiler`) is started; absent that, the
+  interpreted path is used. Set `native_compilation: false` (globally or
+  per-registry) for **unbounded or untrusted** expression input.
+- Task 9's atom test was rewritten: it no longer asserts a false "bounded under
+  churn" property. It now asserts the real guarantee (re-evaluating a cached
+  bounded set does not grow atoms — cache hits never recompile) plus a
+  characterization test pinning the ~1-atom-per-distinct-compile cost.
+- Docs (moduledoc + README) state plainly: native bounds code/memory, each
+  distinct native compile costs ~1 atom, use native for bounded/trusted sets.
+
+A future option (not built): cap total distinct native compiles via a global
+counter and fall back to interpreted once exceeded, to bound the worst case
+under unbounded input. Deferred — unnecessary for the target workload.
