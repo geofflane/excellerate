@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-18
+
 ### Added
 
 - Pluggable compilation strategies (`ExCellerate.Compilation.Strategy`): `ExCellerate.Compilation.Interpreted` (default) uses the interpreter; `ExCellerate.Compilation.NativeCompiled` compiles each expression into a real BEAM module and evaluates it as compiled code (substantially faster on the warm path, much lower per-call allocation). Opt into native globally or per-registry. Native is intended for a bounded, trusted set of expressions — each distinct natively-compiled expression consumes ~1 atom (see the README); the default `Interpreted` strategy is the safe choice for unbounded/untrusted input.
