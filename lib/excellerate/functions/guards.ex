@@ -235,7 +235,7 @@ defmodule ExCellerate.Functions.Guards do
   """
   @spec ensure_even_args!(list(), String.t()) :: :ok
   def ensure_even_args!(args, func_name) when is_list(args) do
-    if args == [] or rem(length(args), 2) != 0 do
+    if Enum.empty?(args) || rem(length(args), 2) != 0 do
       raise ExCellerate.Error,
         message: "'#{func_name}' requires an even number of arguments (condition/value pairs)",
         type: :runtime
