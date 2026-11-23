@@ -168,8 +168,10 @@ defmodule ExCellerate.Parser do
 
   unary =
     choice([
+      # Word-boundary guard so `notable` / `not_set` parse as identifiers.
       whitespace
       |> string("not")
+      |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_]))
       |> replace(:not)
       |> concat(whitespace)
       |> concat(parsec(:unary))

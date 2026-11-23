@@ -61,6 +61,17 @@ defmodule ExCellerate.OperatorsTest do
       assert ExCellerate.eval!("not true") == false
     end
 
+    test "not keyword requires a word boundary" do
+      # Identifiers beginning with `not` must not parse as `not <rest>`.
+      assert ExCellerate.eval!("notable", %{"notable" => 5, "able" => true}) == 5
+      assert ExCellerate.eval!("nothing + 1", %{"nothing" => 1}) == 2
+      assert ExCellerate.eval!("not_set", %{"not_set" => 3}) == 3
+      assert ExCellerate.eval!("not2", %{"not2" => 4}) == 4
+      assert ExCellerate.eval!("not notable", %{"notable" => false}) == true
+      assert ExCellerate.eval!("not(false)") == true
+      assert ExCellerate.eval!("not  true") == false
+    end
+
     test "comparison operators" do
       assert ExCellerate.eval!("1 == 1") == true
       assert ExCellerate.eval!("1 != 2") == true
