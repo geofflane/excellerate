@@ -6,6 +6,7 @@ defmodule ExCellerate.NativeCompilerTest do
   use ExUnit.Case, async: false
 
   alias ExCellerate.NativeCompiler
+  import ExCellerate.Test.NativeAssertions
 
   defmodule SlowReg do
     @moduledoc false
@@ -39,12 +40,7 @@ defmodule ExCellerate.NativeCompilerTest do
 
     test "the returned function runs as a real loaded module, not the interpreter" do
       {:ok, native} = NativeCompiler.compile("1 + 2")
-      info = Function.info(native)
-      assert info[:type] == :external
-
-      assert info[:module]
-             |> Atom.to_string()
-             |> String.starts_with?("Elixir.ExCellerate.Compiled")
+      assert_native(native, "Elixir.ExCellerate.Compiled.E")
     end
 
     test "contrast: the interpreted path runs in the erlang interpreter" do
@@ -96,7 +92,7 @@ defmodule ExCellerate.NativeCompilerTest do
       start_supervised!({NativeCompiler, native_module_limit: 8})
       {:ok, fun, mod} = NativeCompiler.compile_cached(nil, "1 + 2", elixir_ast!("1 + 2"))
 
-      assert Function.info(fun)[:type] == :external
+      assert_native(fun)
       assert mod |> Atom.to_string() |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
       assert fun.(%{}) == 3
     end
@@ -123,9 +119,7 @@ defmodule ExCellerate.NativeCompilerTest do
       {:ok, fun} = NativeCompiler.compile("3 + 4")
       assert fun.(%{}) == 7
 
-      assert Function.info(fun)[:module]
-             |> Atom.to_string()
-             |> String.starts_with?("Elixir.ExCellerate.Compiled.E")
+      assert_native(fun, "Elixir.ExCellerate.Compiled.E")
     end
   end
 

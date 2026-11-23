@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Identifiers beginning with `not` (e.g. `notable`, `nothing`, `not_set`) were parsed as the `not` operator applied to the rest of the name, so `notable` evaluated as `not(able)`. The `not` keyword now requires a word boundary.
+- Under `ExCellerate.Compilation.NativeCompiled`, a function returned by `compile/2` and held by the caller could silently evaluate a *different* expression after its cache entry was evicted and its pooled module slot reused (or raise `UndefinedFunctionError` once the slot was purged). Compiled modules are now generation-tagged, and returned functions detect a stale slot and transparently recompile, so held functions stay correct indefinitely.
+
 ## [0.4.0] - 2026-06-18
 
 ### Added

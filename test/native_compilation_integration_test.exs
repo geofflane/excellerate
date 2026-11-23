@@ -6,6 +6,8 @@
 defmodule ExCellerate.NativeCompilationIntegrationTest do
   use ExUnit.Case, async: false
 
+  import ExCellerate.Test.NativeAssertions
+
   alias ExCellerate.{Cache, NativeCompiler}
   alias ExCellerate.Test.NoNativeRegistry
 
@@ -28,11 +30,7 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
   test "with the supervisor started, eval is correct and the cached fun is native" do
     assert ExCellerate.eval!("1 + 2 * 3") == 7
     {:ok, fun} = ExCellerate.compile("1 + 2 * 3")
-    assert Function.info(fun)[:type] == :external
-
-    assert Function.info(fun)[:module]
-           |> Atom.to_string()
-           |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+    assert_native(fun)
   end
 
   test "evicting a cached entry releases its native module (slot reused)" do
@@ -51,6 +49,54 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     assert stats.free >= 1
   end
 
+  describe "held compiled functions survive slot release" do
+    setup do
+      Application.put_env(:excellerate, :cache_limit, 1)
+      on_exit(fn -> Application.delete_env(:excellerate, :cache_limit) end)
+      :ok
+    end
+
+    test "a held fun stays correct after its slot is reused for another expression" do
+      {:ok, held} = ExCellerate.compile("a + 1")
+      assert held.(%{"a" => 10}) == 11
+
+      # cache_limit 1: compiling "a * 5" evicts "a + 1", releasing its slot.
+      {:ok, _} = ExCellerate.compile("a * 5")
+      wait_until(fn -> NativeCompiler.pool_stats().free >= 1 end)
+
+      # The freed slot is reallocated to a different expression.
+      {:ok, other} = ExCellerate.compile("a - 1000")
+      assert other.(%{"a" => 10}) == -990
+      assert NativeCompiler.pool_stats().free == 0
+
+      assert held.(%{"a" => 10}) == 11
+    end
+
+    test "a held fun stays correct after its module is purged but not yet reused" do
+      {:ok, held} = ExCellerate.compile("a + 1")
+
+      {:ok, _} = ExCellerate.compile("a * 5")
+      wait_until(fn -> NativeCompiler.pool_stats().free >= 1 end)
+
+      assert held.(%{"a" => 10}) == 11
+    end
+
+    test "runtime errors inside a native expression still propagate" do
+      {:ok, fun} = ExCellerate.compile("1 / a")
+      assert_raise ArithmeticError, fn -> fun.(%{"a" => 0}) end
+    end
+  end
+
+  # Polls `fun` until it returns truthy (or fails after ~1s) instead of sleeping
+  # a fixed interval past the purge grace.
+  defp wait_until(fun, attempts \\ 100) do
+    cond do
+      fun.() -> :ok
+      attempts == 0 -> flunk("condition not met in time")
+      true -> receive(after: (10 -> wait_until(fun, attempts - 1)))
+    end
+  end
+
   test "the Interpreted strategy uses the interpreter" do
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.Interpreted)
     {:ok, fun} = ExCellerate.compile("3 + 4")
@@ -67,9 +113,7 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     # Default (no registry) path is still native.
     {:ok, default_fun} = ExCellerate.compile("5 + 6")
 
-    assert Function.info(default_fun)[:module]
-           |> Atom.to_string()
-           |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+    assert_native(default_fun)
   end
 end
 
@@ -79,6 +123,8 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
   # These tests cover that lazy start and the graceful fallback when the compiler
   # call exits (the TOCTOU race). async: false — they touch the global singletons.
   use ExUnit.Case, async: false
+
+  import ExCellerate.Test.NativeAssertions
 
   setup do
     case ExCellerate.Cache.start_link() do
@@ -121,11 +167,7 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
 
     {:ok, fun} = ExCellerate.compile("7 + 8")
     assert fun.(%{}) == 15
-    assert Function.info(fun)[:type] == :external
-
-    assert Function.info(fun)[:module]
-           |> Atom.to_string()
-           |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
+    assert_native(fun)
 
     # The compiler was started on demand — no manual supervision wiring.
     assert Process.whereis(ExCellerate.NativeCompiler)

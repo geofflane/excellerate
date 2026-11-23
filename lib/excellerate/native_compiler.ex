@@ -12,6 +12,8 @@ defmodule ExCellerate.NativeCompiler do
   #   * A GenServer that owns a bounded pool of reusable module-name atoms and
   #     serializes module creation. `compile_cached/3` dedups by {registry, expr}
   #     and falls back to an interpreted closure when the pool is exhausted.
+  #     Pooled names are reused, so callers get a generation-checked closure
+  #     rather than a bare module capture (see "Stale-slot guard" below).
 
   use GenServer
 
@@ -133,8 +135,10 @@ defmodule ExCellerate.NativeCompiler do
         case Slots.alloc(state.slots) do
           {:ok, name, slots} ->
             try do
-              fun = create_eval_module(name, elixir_ast)
-              by_key = Map.put(state.by_key, key, name)
+              gen = :erlang.unique_integer([:positive])
+              create_eval_module(name, elixir_ast, gen)
+              fun = guarded_fun(name, gen, registry, expr)
+              by_key = Map.put(state.by_key, key, {name, gen})
               {:reply, {:ok, fun, name}, %{state | slots: slots, by_key: by_key}}
             rescue
               _ ->
@@ -149,8 +153,8 @@ defmodule ExCellerate.NativeCompiler do
             {:reply, {:ok, Interpreted.build_fun(elixir_ast), nil}, %{state | slots: slots}}
         end
 
-      mod ->
-        {:reply, {:ok, Function.capture(mod, :eval, 1), mod}, state}
+      {mod, gen} ->
+        {:reply, {:ok, guarded_fun(mod, gen, registry, expr), mod}, state}
     end
   end
 
@@ -169,7 +173,7 @@ defmodule ExCellerate.NativeCompiler do
         # Unknown key or an interpreted fallback (never recorded) — nothing to do.
         {:noreply, state}
 
-      mod ->
+      {mod, _gen} ->
         # Remove the key immediately so dedup won't hand out a module that is
         # about to be purged, then schedule the purge after the grace period.
         by_key = Map.delete(state.by_key, key)
@@ -225,27 +229,75 @@ defmodule ExCellerate.NativeCompiler do
 
   defp build_module_fun(ast, registry) do
     elixir_ast = Compiler.compile(ast, registry)
-    create_eval_module(unique_module_name(), elixir_ast)
+    name = unique_module_name()
+    gen = :erlang.unique_integer([:positive])
+    create_eval_module(name, elixir_ast, gen)
+    # Standalone names are never reused, so no staleness guard is needed.
+    fn scope -> name.eval(scope, gen) end
   end
 
-  # Creates a `def eval(scope), do: <elixir_ast>` module under `name` and
-  # returns a captured reference to it.
-  defp create_eval_module(name, elixir_ast) do
+  ## Stale-slot guard
+  #
+  # Pooled module names are reused once a slot is released and purged. A caller
+  # may still hold the fun it got from compile/2, so a bare `&S0.eval/1` capture
+  # would later run whatever expression next occupies S0 (or raise :undef while
+  # the slot sits free). Instead, each module is compiled with a generation
+  # number that only its own eval/2 clause accepts, and callers receive a closure
+  # (defined here, in a module that is never purged) that detects a stale slot
+  # and recovers by recompiling the expression through ExCellerate.compile/2.
+
+  defp guarded_fun(mod, gen, registry, expr) do
+    fn scope -> run(mod, gen, registry, expr, scope) end
+  end
+
+  @doc false
+  def run(mod, gen, registry, expr, scope) do
+    mod.eval(scope, gen)
+  catch
+    :error, {:excellerate_stale_module, ^mod} ->
+      recompile_and_run(registry, expr, scope)
+
+    :error, :undef ->
+      # Only treat :undef as staleness when the missing function is this slot's
+      # own eval/2 (module purged, slot not yet reused). An :undef raised from
+      # inside the expression is a real error and is re-raised untouched.
+      case __STACKTRACE__ do
+        [{^mod, :eval, args, _} | _] when args == 2 or length(args) == 2 ->
+          recompile_and_run(registry, expr, scope)
+
+        stacktrace ->
+          :erlang.raise(:error, :undef, stacktrace)
+      end
+  end
+
+  defp recompile_and_run(registry, expr, scope) do
+    case ExCellerate.compile(expr, registry) do
+      {:ok, fun} -> fun.(scope)
+      {:error, error} -> raise error
+    end
+  end
+
+  # Creates a module under `name` whose `eval(scope, gen)` evaluates
+  # `elixir_ast` only when called with this module's own generation; any other
+  # generation means the caller holds a fun for a previous occupant of the slot.
+  defp create_eval_module(name, elixir_ast, gen) do
     scope_var = Compiler.scope_var()
 
     body =
       quote do
-        def eval(unquote(scope_var)) do
+        def eval(unquote(scope_var), unquote(gen)) do
           # Mark the scope param used so scope-less expressions (e.g. "1 + 2")
           # do not emit an unused-variable warning at Module.create time. The
           # interpreted fn-wrapper path does not warn on unused args; match that.
           _ = unquote(scope_var)
           unquote(elixir_ast)
         end
+
+        def eval(_scope, _gen), do: :erlang.error({:excellerate_stale_module, __MODULE__})
       end
 
     Module.create(name, body, Macro.Env.location(__ENV__))
-    Function.capture(name, :eval, 1)
+    :ok
   end
 
   defp unique_module_name do
