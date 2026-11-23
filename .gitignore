@@ -28,3 +28,5 @@ excellerate-*.tar
 
 # Session scaffolding (specs/plans) — not part of the repo; code docs stand alone.
 /docs/superpowers/
+
+.claude/
