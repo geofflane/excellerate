@@ -87,6 +87,16 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     end
   end
 
+  test "Cache.clear/0 releases the native modules of the entries it drops" do
+    {:ok, _} = ExCellerate.compile("a + 1")
+    {:ok, _} = ExCellerate.compile("a + 2")
+    assert %{by_key: 2, free: 0} = NativeCompiler.pool_stats()
+
+    Cache.clear()
+
+    wait_until(fn -> match?(%{by_key: 0, free: 2}, NativeCompiler.pool_stats()) end)
+  end
+
   # Polls `fun` until it returns truthy (or fails after ~1s) instead of sleeping
   # a fixed interval past the purge grace.
   defp wait_until(fun, attempts \\ 100) do

@@ -15,9 +15,12 @@ defmodule ExCellerate.Compilation.NativeCompiled do
   the caller; native compilation is a transparent optimization, never a
   correctness dependency.
 
-  NOTE: `Module.create/3` interns ~1 permanent atom per distinct expression
-  compiled. Use this strategy for a bounded, trusted set of expressions (cache
-  sized to hold them); prefer `Interpreted` for unbounded/untrusted input.
+  NOTE: every native compile permanently interns 1 atom (Elixir's module
+  compiler names a temporary module per `Module.create/3`), including a
+  recompile after the expression is evicted from the cache. Use this strategy
+  for a bounded, trusted set of expressions with `cache_limit` sized to hold
+  them all, so each compiles once; prefer `Interpreted` for unbounded/untrusted
+  input.
   """
   @behaviour ExCellerate.Compilation.Strategy
 

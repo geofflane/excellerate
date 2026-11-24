@@ -308,10 +308,12 @@ defmodule ExCellerate do
       native's one-time compile cost would not amortize.
     * `ExCellerate.Compilation.NativeCompiled` — compiles each expression into a
       real BEAM module and evaluates it as compiled code: substantially faster on
-      the warm path with much lower per-call allocation. Each distinct compiled
-      expression permanently consumes ~1 atom (an artifact of runtime module
-      creation — the module pool bounds live module memory, not the atom table),
-      so use it for a **bounded, trusted** set of expressions.
+      the warm path with much lower per-call allocation. Every native compile
+      permanently consumes 1 atom (Elixir's module compiler names a temporary
+      module per compile), including a recompile after cache eviction; the pool
+      of reusable module names adds at most `native_module_limit` more. Use it for
+      a **bounded, trusted** set of expressions with `cache_limit` sized to hold
+      them all, so each compiles once.
 
   Opt into native compilation globally or per-registry:
 

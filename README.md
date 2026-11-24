@@ -45,7 +45,7 @@ How an expression is executed is a pluggable **compilation strategy** (`ExCeller
 
 Opt into native compilation globally with `config :excellerate, compilation: ExCellerate.Compilation.NativeCompiled`, or per-registry with `use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled`. The `ExCellerate.NativeCompiler` process it needs is **started on demand** the first time a native compile happens (supervised by the `:excellerate` application) — you don't add anything to your supervision tree for it, and it works whether native is selected globally or only on a single registry. Nothing is started for interpreted-only use.
 
-**Important — when to use `NativeCompiled`.** It is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **each distinct natively-compiled expression permanently consumes ~1 atom** (a characteristic of runtime module creation; the module-name pool bounds live module *memory*, not the atom table). For a fixed set of formulas this is negligible. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), keep the default `Interpreted` strategy, which allocates no atoms per expression.
+**Important — when to use `NativeCompiled`.** It is designed for a **bounded, trusted set of expressions** that are each evaluated many times (cache sized to hold them). Compiling an expression creates a BEAM module, and **every native compile permanently consumes 1 atom** (Elixir's module compiler names a temporary module per compile). Module names come from a reusable pool, adding at most `native_module_limit` atoms in total. Expressions are cached per expression string, and an expression evicted from the cache is recompiled on its next use, costing another atom. So **set `cache_limit` to at least the number of distinct expressions you evaluate**: then each compiles exactly once, and the atom cost is a one-time ~1 per expression. For a fixed set of formulas this is negligible: 500 expressions cost about 1,000 atoms out of the VM's default limit of 1,048,576. **For unbounded or untrusted expression input** (e.g. arbitrary user-supplied formulas with unbounded variety), keep the default `Interpreted` strategy, which allocates no atoms per expression.
 
 ### Configuring Caching in a Registry
 
@@ -79,6 +79,8 @@ config :excellerate,
 ```
 
 `native_module_limit` and `native_purge_grace_ms` only matter when you opt into the `NativeCompiled` strategy. See the strategy note above for the atom-cost caveat.
+
+The module pool (`native_module_limit`) is **shared by every native registry**, while `cache_limit` applies per registry. Size `native_module_limit` to at least the sum of `cache_limit` across your native registries. When the pool is full, new expressions are still evaluated correctly, but through the interpreter, until cached entries are evicted. A warning is logged the first time this happens.
 
 ### Custom Registries and Overrides
 

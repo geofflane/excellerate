@@ -11,9 +11,10 @@ defmodule ExCellerate.Compilation.Strategy do
       evaluated only a few times.
     * `ExCellerate.Compilation.NativeCompiled` — compiles each expression into a
       real, loaded BEAM module and evaluates it as compiled code (much faster on
-      the warm path, far lower per-call allocation). Each distinct compiled
-      expression consumes ~1 permanent atom, so use it for a bounded, trusted set
-      of expressions evaluated many times.
+      the warm path, far lower per-call allocation). Every native compile
+      consumes 1 permanent atom (recompiles after cache eviction included), so
+      use it for a bounded, trusted set of expressions evaluated many times, with
+      the cache sized to hold them.
 
   Select one globally with `config :excellerate, compilation: <strategy module>`
   or per-registry with `use ExCellerate.Registry, compilation: <strategy module>`.

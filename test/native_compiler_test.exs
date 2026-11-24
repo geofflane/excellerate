@@ -7,6 +7,7 @@ defmodule ExCellerate.NativeCompilerTest do
 
   alias ExCellerate.NativeCompiler
   import ExCellerate.Test.NativeAssertions
+  import ExUnit.CaptureLog
 
   defmodule SlowReg do
     @moduledoc false
@@ -113,6 +114,23 @@ defmodule ExCellerate.NativeCompilerTest do
       assert mod2 == nil
       assert Function.info(f2)[:module] == :erl_eval
       assert f2.(%{}) == 4
+    end
+
+    test "warns once (per server) when the pool fills" do
+      start_supervised!({NativeCompiler, native_module_limit: 1})
+      {:ok, _f1, _mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
+
+      log =
+        capture_log(fn ->
+          {:ok, _, nil} = NativeCompiler.compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
+        end)
+
+      assert log =~ "module pool is full"
+      assert log =~ "native_module_limit: 1"
+
+      refute capture_log(fn ->
+               {:ok, _, nil} = NativeCompiler.compile_cached(nil, "3 + 3", elixir_ast!("3 + 3"))
+             end) =~ "module pool is full"
     end
 
     test "the standalone compile/2 helper still works (Phase 1 unaffected)" do

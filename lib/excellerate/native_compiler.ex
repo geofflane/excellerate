@@ -88,7 +88,7 @@ defmodule ExCellerate.NativeCompiler do
         Application.get_env(:excellerate, :native_purge_grace_ms, @default_grace_ms)
       )
 
-    {:ok, %{slots: Slots.new(cap), by_key: %{}, grace_ms: grace_ms}}
+    {:ok, %{slots: Slots.new(cap), by_key: %{}, grace_ms: grace_ms, warned_full: false}}
   end
 
   # Compiles `elixir_ast` into a native BEAM module, reusing a pooled module
@@ -150,6 +150,7 @@ defmodule ExCellerate.NativeCompiler do
             end
 
           {:full, slots} ->
+            state = maybe_warn_full(state)
             {:reply, {:ok, Interpreted.build_fun(elixir_ast), nil}, %{state | slots: slots}}
         end
 
@@ -223,6 +224,25 @@ defmodule ExCellerate.NativeCompiler do
     end)
 
     :ok
+  end
+
+  # A full pool silently costs every new expression the native speedup, so make
+  # it visible. Logged once per server lifetime (state, not :persistent_term, so
+  # a restarted server — e.g. in tests — warns again).
+  defp maybe_warn_full(%{warned_full: true} = state), do: state
+
+  defp maybe_warn_full(state) do
+    require Logger
+
+    Logger.warning(
+      "ExCellerate.NativeCompiler module pool is full " <>
+        "(native_module_limit: #{state.slots.cap}); new expressions will be " <>
+        "evaluated interpreted until cached entries are evicted. The pool is " <>
+        "shared by every native registry, so size native_module_limit to at " <>
+        "least the sum of their cache_limit values. This warning is logged once."
+    )
+
+    %{state | warned_full: true}
   end
 
   ## Shared helpers

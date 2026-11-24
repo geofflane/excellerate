@@ -85,9 +85,26 @@ defmodule ExCellerate.Cache do
   end
 
   @doc false
+  # Drops every entry, releasing the native module behind each one (as LRU
+  # eviction does) so its pool slot can be reused. Entries are taken one at a
+  # time so an entry inserted concurrently is either released here or survives.
   def clear do
     if table_exists?() do
-      :ets.delete_all_objects(@table_name)
+      @table_name
+      |> :ets.select([{{:"$1", :_, :_, :_}, [], [:"$1"]}])
+      |> Enum.each(&take_and_release/1)
+    end
+
+    :ok
+  end
+
+  defp take_and_release(key) do
+    case :ets.take(@table_name, key) do
+      [{{registry, expr}, _value, _ts, mod}] when mod != nil ->
+        ExCellerate.NativeCompiler.release(registry, expr)
+
+      _ ->
+        :ok
     end
   end
 
