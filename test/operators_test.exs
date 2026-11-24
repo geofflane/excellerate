@@ -72,6 +72,28 @@ defmodule ExCellerate.OperatorsTest do
       assert ExCellerate.eval!("not  true") == false
     end
 
+    test "not is a reserved word, not a variable or function name" do
+      # Reserving `not` keeps `not(...)` from also parsing as a call to a
+      # function named `not`, which made unclosed nesting exponential to reject.
+      assert {:error, %ExCellerate.Error{type: :parser}} =
+               ExCellerate.eval("not", %{"not" => 1})
+
+      assert {:error, %ExCellerate.Error{type: :parser}} =
+               ExCellerate.eval("not.x", %{"not" => %{"x" => 1}})
+
+      assert {:error, %ExCellerate.Error{type: :parser}} =
+               ExCellerate.eval("not[0]", %{"not" => [1]})
+
+      assert {:error, %ExCellerate.Error{type: :parser}} = ExCellerate.eval("not(1, 2)")
+    end
+
+    test "a key named not is still reachable through an object" do
+      scope = %{"row" => %{"not" => 7}}
+      assert ExCellerate.eval!("row.not", scope) == 7
+      assert ExCellerate.eval!("row['not']", scope) == 7
+      assert ExCellerate.eval!("not row.not", %{"row" => %{"not" => false}}) == true
+    end
+
     test "comparison operators" do
       assert ExCellerate.eval!("1 == 1") == true
       assert ExCellerate.eval!("1 != 2") == true

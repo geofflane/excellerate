@@ -129,8 +129,20 @@ defmodule ExCellerate.Parser do
   #   `list[0]`            → bracket access (index can be any expression)
   #   `abs(-10)`           → function call
   #   `obj.method(1).val`  → mixed chaining
+  #
+  # Reserved words can't start a variable. `true`/`false`/`null` are matched as
+  # literals first anyway; `not` must be excluded explicitly. Otherwise, when the
+  # `not` operator fails on unclosed input like `not(not(1`, `unary` falls through
+  # to here and re-parses the same text as a call to a function named `not`.
+  # NimbleParsec doesn't memoize, so that doubled the work per nesting level.
+  # Dot access (`row.not`) uses `identifier` directly and is unaffected.
+  reserved_word =
+    choice([string("not"), string("true"), string("false"), string("null")])
+    |> lookahead_not(ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_]))
+
   variable =
-    identifier
+    lookahead_not(reserved_word)
+    |> concat(identifier)
     |> repeat(access_suffix)
     |> reduce({__MODULE__, :build_access, []})
 

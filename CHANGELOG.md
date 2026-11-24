@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - A call on a computed value (`x.m(1)`, `list[0](1)`, `items[*].m()`, `abs(1)(2)`) dispatched to whatever module atom the evaluated value held, bypassing the registry allowlist. If the scope data contained a module atom exposing `call/1`, an expression could invoke it. Such calls are now rejected at compile time with a `:compiler` error; only names that resolve through the registry or defaults can be called.
+- Unclosed nested `not(` (e.g. `not(not(not(…1`) took exponential time to reject: each level was parsed both as the `not` operator and as a call to a function named `not`, so an 81-byte expression took about 3.5 seconds and each extra level doubled that. `not` is now a reserved word and such input is rejected in linear time.
 
 ### Fixed
 
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `not` is now a reserved word, like `true`, `false`, and `null`. A bare variable named `not` (`eval("not", %{"not" => 1})`) and a registry function named `not` are no longer usable; a key named `not` is still reachable through its parent (`row.not`, `row['not']`).
 - `if`, `ifs`, `ifnull`, `coalesce`, `switch`, `and`, and `or` now evaluate only the arguments they need, like `&&`, `||`, and the ternary. Previously every argument was evaluated first, so `if(x != 0, 10 / x, 0)` raised when `x` was `0`. Results are unchanged for any expression that did not raise. A registry's own function with one of these names is still called normally.
 - `ExCellerate.Cache` no longer writes on every hit: a hit records recency only if the entry has not been used since the last insert, so reads of hot expressions from many processes stop contending on the same rows (about 13× faster per hit with 14 concurrent readers). Insertion keeps a per-registry entry count instead of counting the table on every `put`. Entries read between the same two inserts now count as equally recent for eviction.
 - `ExCellerate.NativeCompiler` logs a one-time warning when its module pool fills, since new expressions then silently lose native compilation.

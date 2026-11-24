@@ -119,4 +119,36 @@ defmodule ExCellerate.ParserTest do
       assert {:error, _} = ExCellerate.eval("abs(1")
     end
   end
+
+  describe "parser errors on deeply nested unclosed input" do
+    # A choice alternative that fails deep in the input and is then re-parsed by
+    # the next alternative doubles the work per nesting level. These must be
+    # rejected in linear time; exponential parsing would take hours at depth 30.
+    import ExCellerate.Test.Bounded
+
+    @depth 30
+
+    test "unclosed not( is rejected quickly" do
+      input = String.duplicate("not(", @depth) <> "1"
+
+      assert {:error, %ExCellerate.Error{type: :parser}} =
+               within(1_000, fn -> ExCellerate.Parser.parse(input) end)
+    end
+
+    for prefix <- ["not (", "-(", "~(", "(", "abs(", "a.(", "a[", "not -(", "-not(", "1 + ("] do
+      test "unclosed #{inspect(prefix)} nesting is rejected quickly" do
+        input = String.duplicate(unquote(prefix), @depth) <> "1"
+
+        assert {:error, %ExCellerate.Error{type: :parser}} =
+                 within(1_000, fn -> ExCellerate.Parser.parse(input) end)
+      end
+    end
+
+    test "nested ternaries without a colon are rejected quickly" do
+      input = String.duplicate("a ? ", @depth) <> "1"
+
+      assert {:error, %ExCellerate.Error{type: :parser}} =
+               within(1_000, fn -> ExCellerate.Parser.parse(input) end)
+    end
+  end
 end

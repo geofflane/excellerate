@@ -16,6 +16,10 @@ defmodule ExCellerate do
   - **Ternary**: `condition ? true_val : false_val`
   - **Data access**: `user.profile.name`, `list[0]`, `list[-1]`, `list[*].field` (spread)
 
+  `true`, `false`, `null`, and `not` are reserved words, so they can't be used as
+  variable or function names. A key with one of these names is still reachable
+  through its parent: `row.not`, `row['null']`.
+
   ## Built-in Functions
 
   ### Math

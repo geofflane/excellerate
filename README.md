@@ -149,6 +149,8 @@ MyApp.Registry.eval!("max(10, 20)")
 - **Bitwise**: `&`, `|`, `|^` (xor), `<<`, `>>`, `~` (bnot)
 - **Ternary**: `condition ? true_val : false_val`
 
+`true`, `false`, `null`, and `not` are reserved words, so they can't be used as variable or function names. A key with one of these names is still reachable through its parent: `row.not`, `row['null']`.
+
 ### Math Functions
 
 - `abs(n)`: Absolute value.
