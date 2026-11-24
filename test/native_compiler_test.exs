@@ -6,24 +6,30 @@ defmodule ExCellerate.NativeCompilerTest do
   use ExUnit.Case, async: false
 
   alias ExCellerate.NativeCompiler
-  import ExCellerate.Test.NativeAssertions
+  import ExCellerate.Test.{Eventually, NativeAssertions}
   import ExUnit.CaptureLog
 
-  defmodule SlowReg do
+  defmodule BlockReg do
     @moduledoc false
-    defmodule Slow do
+    defmodule Block do
       @moduledoc false
+      # block(pid): tells `pid` it is running, then waits for :unblock. Lets a
+      # test hold a native eval frame on a process's stack for exactly as long
+      # as it needs, with no timing assumptions.
       @behaviour ExCellerate.Function
-      def name, do: "slow"
+      def name, do: "block"
       def arity, do: 1
 
-      def call([ms]) do
-        Process.sleep(ms)
-        ms
+      def call([pid]) do
+        send(pid, {:blocked, self()})
+
+        receive do
+          :unblock -> 0
+        end
       end
     end
 
-    use ExCellerate.Registry, plugins: [Slow]
+    use ExCellerate.Registry, plugins: [Block]
   end
 
   describe "compile/2" do
@@ -105,6 +111,7 @@ defmodule ExCellerate.NativeCompilerTest do
       assert mod1 == mod2
     end
 
+    @tag capture_log: true
     test "falls back to an interpreted closure when the pool is full" do
       start_supervised!({NativeCompiler, native_module_limit: 1})
       {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
@@ -156,11 +163,7 @@ defmodule ExCellerate.NativeCompilerTest do
       assert %{free: 0, by_key: 1} = NativeCompiler.pool_stats()
 
       NativeCompiler.release(nil, "1 + 1")
-      Process.sleep(120)
-
-      stats = NativeCompiler.pool_stats()
-      assert stats.by_key == 0
-      assert stats.free == 1
+      wait_until(fn -> match?(%{by_key: 0, free: 1}, NativeCompiler.pool_stats()) end)
 
       # The freed slot (same atom) is reused for the next expression.
       {:ok, fun_b, mod_b} = NativeCompiler.compile_cached(nil, "2 + 3", ast!("2 + 3"))
@@ -189,31 +192,35 @@ defmodule ExCellerate.NativeCompilerTest do
     test "does not free a slot while its module's code is still executing" do
       start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 10})
 
-      # The slow(...) call must sit in NON-tail position (the `+ 1`) so the
-      # generated eval/1 frame stays on the running process's call stack during
-      # the sleep. A bare "slow(80)" tail-calls out of eval/1, so its code is no
-      # longer "in use" mid-sleep and soft_purge would succeed immediately.
-      expr = "slow(80) + 1"
+      # The block(...) call must sit in NON-tail position (the `+ 1`) so the
+      # generated eval frame stays on the running process's call stack while it
+      # blocks. A bare "block(parent)" tail-calls out of eval, so its code is no
+      # longer "in use" and soft_purge would succeed immediately.
+      expr = "block(parent) + 1"
       {:ok, ast} = Parser.parse(expr)
-      elixir_ast = Compiler.compile(ast, SlowReg)
-      {:ok, fun, _mod} = NativeCompiler.compile_cached(SlowReg, expr, elixir_ast)
+      elixir_ast = Compiler.compile(ast, BlockReg)
+      {:ok, fun, mod} = NativeCompiler.compile_cached(BlockReg, expr, elixir_ast)
 
-      # Run the native fun (sleeps 80ms) in another process.
-      task = Task.async(fn -> fun.(%{}) end)
-      Process.sleep(10)
+      # Run the native fun in another process and wait until it is blocked
+      # inside the module's code.
+      parent = self()
+      task = Task.async(fn -> fun.(%{"parent" => parent}) end)
+      assert_receive {:blocked, runner}
 
-      # Release while the call is still running; grace (10ms) elapses mid-call,
-      # so the purge attempt sees the code in use -> soft_purge false -> not freed.
-      NativeCompiler.release(SlowReg, expr)
-      Process.sleep(40)
+      # Release while the call is still running. Once the purge has deleted the
+      # module (its code becomes "old"), the same handler's soft_purge has seen
+      # the code in use; pool_stats/0 is served after that handler, so the slot
+      # must still be taken.
+      NativeCompiler.release(BlockReg, expr)
+      wait_until(fn -> :erlang.check_old_code(mod) end)
       assert NativeCompiler.pool_stats().free == 0
 
       # The in-flight call completes correctly despite the release.
-      assert Task.await(task) == 81
+      send(runner, :unblock)
+      assert Task.await(task) == 1
 
       # Once the code is no longer running, a later purge cycle frees the slot.
-      Process.sleep(60)
-      assert NativeCompiler.pool_stats().free == 1
+      wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
     end
   end
 end

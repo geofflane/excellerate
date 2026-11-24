@@ -127,6 +127,10 @@ defmodule ExCellerate.CacheStopTest do
   # randomized test order.
   use ExUnit.Case
 
+  import ExUnit.CaptureLog
+
+  alias ExCellerate.Test.WarnFlags
+
   setup do
     case ExCellerate.Cache.start_link() do
       {:ok, _pid} -> :ok
@@ -136,12 +140,16 @@ defmodule ExCellerate.CacheStopTest do
     :ok
   end
 
-  @tag capture_log: true
-  test "eval works without cache process running" do
+  test "eval works without cache process running, warning once" do
     GenServer.stop(ExCellerate.Cache)
+    WarnFlags.reset(:excellerate_cache_warned)
 
     try do
-      assert ExCellerate.eval!("1 + 2") == 3
+      log = capture_log(fn -> assert ExCellerate.eval!("1 + 2") == 3 end)
+      assert log =~ "ExCellerate.Cache is not started"
+
+      refute capture_log(fn -> ExCellerate.eval!("1 + 3") end) =~
+               "not started"
     after
       case ExCellerate.Cache.start_link() do
         {:ok, _pid} -> :ok

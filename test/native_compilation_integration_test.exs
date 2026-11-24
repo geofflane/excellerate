@@ -6,7 +6,7 @@
 defmodule ExCellerate.NativeCompilationIntegrationTest do
   use ExUnit.Case, async: false
 
-  import ExCellerate.Test.NativeAssertions
+  import ExCellerate.Test.{Eventually, NativeAssertions}
 
   alias ExCellerate.{Cache, NativeCompiler}
   alias ExCellerate.Test.NoNativeRegistry
@@ -41,12 +41,8 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     assert ExCellerate.eval!("2 + 2") == 4
     # With cache_limit: 1, evaluating "2 + 2" evicts "1 + 1", which releases A's
     # native module. After the purge grace (20ms, set in setup), A's slot returns
-    # to the pool. Sleep past the grace, then assert the slot was actually reclaimed
-    # (proves release + purge fired, not a trivially-true condition).
-    Process.sleep(120)
-
-    stats = NativeCompiler.pool_stats()
-    assert stats.free >= 1
+    # to the pool, proving release + purge fired.
+    wait_until(fn -> NativeCompiler.pool_stats().free >= 1 end)
   end
 
   describe "held compiled functions survive slot release" do
@@ -97,16 +93,6 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     wait_until(fn -> match?(%{by_key: 0, free: 2}, NativeCompiler.pool_stats()) end)
   end
 
-  # Polls `fun` until it returns truthy (or fails after ~1s) instead of sleeping
-  # a fixed interval past the purge grace.
-  defp wait_until(fun, attempts \\ 100) do
-    cond do
-      fun.() -> :ok
-      attempts == 0 -> flunk("condition not met in time")
-      true -> receive(after: (10 -> wait_until(fun, attempts - 1)))
-    end
-  end
-
   test "the Interpreted strategy uses the interpreter" do
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.Interpreted)
     {:ok, fun} = ExCellerate.compile("3 + 4")
@@ -135,6 +121,9 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
   use ExUnit.Case, async: false
 
   import ExCellerate.Test.NativeAssertions
+  import ExUnit.CaptureLog
+
+  alias ExCellerate.Test.WarnFlags
 
   setup do
     case ExCellerate.Cache.start_link() do
@@ -211,8 +200,12 @@ defmodule ExCellerate.NativeCompilationFallbackTest do
     # Sanity: the name is owned by our live dummy at the whereis check.
     assert Process.whereis(ExCellerate.NativeCompiler) == pid
 
-    # No caller crash; result is correct via the interpreted fallback.
-    assert ExCellerate.eval!("2 + 3") == 5
+    # No caller crash; result is correct via the interpreted fallback, and the
+    # fallback is logged (once per VM).
+    WarnFlags.reset(:excellerate_native_exit_warned)
+    log = capture_log(fn -> assert ExCellerate.eval!("2 + 3") == 5 end)
+    assert log =~ "NativeCompiler exited during compilation"
+    assert log =~ "simulated_crash"
 
     on_exit(fn ->
       if p = Process.whereis(ExCellerate.NativeCompiler), do: Process.exit(p, :kill)

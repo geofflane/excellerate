@@ -87,9 +87,12 @@ defmodule ExCellerate.DateTimeFunctionsTest do
 
   describe "today" do
     test "returns today's date" do
+      # Bracket the call so a UTC date rollover mid-test cannot fail it.
+      before = Date.utc_today()
       result = ExCellerate.eval!("today()")
+      after_today = Date.utc_today()
       assert %Date{} = result
-      assert result == Date.utc_today()
+      assert result in [before, after_today]
     end
 
     test "rejects arguments" do

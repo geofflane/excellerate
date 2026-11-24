@@ -54,6 +54,8 @@ defmodule ExCellerate.NativeCompilationSafetyTest do
     :ok
   end
 
+  # The tiny pool fills by design, which logs the pool-full warning.
+  @tag capture_log: true
   test "concurrent eval + eviction/purge churn: no crashes, all results correct" do
     # Tiny cache_limit + tiny module_limit + tiny grace => the cache constantly
     # evicts -> releases -> soft-purges native modules WHILE other workers are
@@ -105,7 +107,6 @@ defmodule ExCellerate.NativeCompilationSafetyTest do
 
     # Compile each once (warm the cache + mint one native module per formula).
     for f <- formulas, do: ExCellerate.eval!(f)
-    Process.sleep(50)
 
     before = :erlang.system_info(:atom_count)
 
