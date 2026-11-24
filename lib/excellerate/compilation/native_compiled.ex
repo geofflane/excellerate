@@ -34,7 +34,11 @@ defmodule ExCellerate.Compilation.NativeCompiled do
     case ExCellerate.Supervisor.ensure_native_compiler() do
       {:ok, _pid} ->
         try do
-          {:ok, fun, mod_name} = NativeCompiler.compile_cached(registry, expression, elixir_ast)
+          on_stale = fn scope -> recompile_and_run(registry, expression, scope) end
+
+          {:ok, fun, mod_name} =
+            NativeCompiler.compile_cached(registry, expression, elixir_ast, on_stale)
+
           {fun, mod_name}
         catch
           # TOCTOU: NativeCompiler can crash, be restarted, or time out between
@@ -52,6 +56,17 @@ defmodule ExCellerate.Compilation.NativeCompiled do
         # optimization, so fall back to the interpreter.
         warn_unavailable_once(:native_compiler_unavailable)
         {Interpreted.build_fun(elixir_ast), nil}
+    end
+  end
+
+  # A function returned by compile/2 can outlive its cache entry. Once its
+  # pooled module slot is released, it evaluates by compiling the expression
+  # again through ExCellerate.compile/2, so the new module is cached (and later
+  # released by eviction) like any other.
+  defp recompile_and_run(registry, expression, scope) do
+    case ExCellerate.compile(expression, registry) do
+      {:ok, fun} -> fun.(scope)
+      {:error, error} -> raise error
     end
   end
 

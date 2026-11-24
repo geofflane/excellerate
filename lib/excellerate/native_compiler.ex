@@ -10,10 +10,14 @@ defmodule ExCellerate.NativeCompiler do
   #     and create a module under a UNIQUE name (`ExCellerate.Compiled.E<n>`).
   #     Used by the benchmark in priv/bench/native_bench.exs.
   #   * A GenServer that owns a bounded pool of reusable module-name atoms and
-  #     serializes module creation. `compile_cached/3` dedups by {registry, expr}
+  #     serializes module creation. `compile_cached/4` dedups by {registry, expr}
   #     and falls back to an interpreted closure when the pool is exhausted.
   #     Pooled names are reused, so callers get a generation-checked closure
   #     rather than a bare module capture (see "Stale-slot guard" below).
+  #
+  # This module manages modules and names only. How a stale closure recovers
+  # (recompiling through the cache) is supplied by the caller, so the pool does
+  # not depend on ExCellerate's compile pipeline that depends on it.
 
   use GenServer
 
@@ -97,13 +101,20 @@ defmodule ExCellerate.NativeCompiler do
   #   * {:ok, fun, mod_name}      — native module function
   #   * {:ok, interpreted_fun, nil} — fallback when the pool is full
   #
+  # `on_stale` evaluates the expression for a scope when the returned closure
+  # finds its slot released (see "Stale-slot guard" below).
+  #
   # Assumes `elixir_ast` is an already-parsed/compiled, valid AST (produced by
   # Parser + Compiler). Module creation is still guarded so a malformed-AST edge
   # case falls back to an interpreted closure instead of crashing the server.
-  @spec compile_cached(module() | nil, String.t(), Macro.t()) ::
-          {:ok, (ExCellerate.scope() -> any()), module() | nil}
-  def compile_cached(registry, expr, elixir_ast) do
-    GenServer.call(__MODULE__, {:compile, registry, expr, elixir_ast})
+  @spec compile_cached(
+          module() | nil,
+          String.t(),
+          Macro.t(),
+          (ExCellerate.scope() -> any())
+        ) :: {:ok, (ExCellerate.scope() -> any()), module() | nil}
+  def compile_cached(registry, expr, elixir_ast, on_stale) do
+    GenServer.call(__MODULE__, {:compile, registry, expr, elixir_ast, on_stale})
   end
 
   # Releases a previously compiled {registry, expr} entry, scheduling its module
@@ -127,7 +138,7 @@ defmodule ExCellerate.NativeCompiler do
   end
 
   @impl true
-  def handle_call({:compile, registry, expr, elixir_ast}, _from, state) do
+  def handle_call({:compile, registry, expr, elixir_ast, on_stale}, _from, state) do
     key = {registry, expr}
 
     case Map.get(state.by_key, key) do
@@ -137,7 +148,7 @@ defmodule ExCellerate.NativeCompiler do
             try do
               gen = :erlang.unique_integer([:positive])
               create_eval_module(name, elixir_ast, gen)
-              fun = guarded_fun(name, gen, registry, expr)
+              fun = guarded_fun(name, gen, on_stale)
               by_key = Map.put(state.by_key, key, {name, gen})
               {:reply, {:ok, fun, name}, %{state | slots: slots, by_key: by_key}}
             rescue
@@ -155,7 +166,7 @@ defmodule ExCellerate.NativeCompiler do
         end
 
       {mod, gen} ->
-        {:reply, {:ok, guarded_fun(mod, gen, registry, expr), mod}, state}
+        {:reply, {:ok, guarded_fun(mod, gen, on_stale), mod}, state}
     end
   end
 
@@ -264,18 +275,18 @@ defmodule ExCellerate.NativeCompiler do
   # the slot sits free). Instead, each module is compiled with a generation
   # number that only its own eval/2 clause accepts, and callers receive a closure
   # (defined here, in a module that is never purged) that detects a stale slot
-  # and recovers by recompiling the expression through ExCellerate.compile/2.
+  # and hands the scope to the caller-supplied `on_stale`.
 
-  defp guarded_fun(mod, gen, registry, expr) do
-    fn scope -> run(mod, gen, registry, expr, scope) end
+  defp guarded_fun(mod, gen, on_stale) do
+    fn scope -> run(mod, gen, on_stale, scope) end
   end
 
   @doc false
-  def run(mod, gen, registry, expr, scope) do
+  def run(mod, gen, on_stale, scope) do
     mod.eval(scope, gen)
   catch
     :error, {:excellerate_stale_module, ^mod} ->
-      recompile_and_run(registry, expr, scope)
+      on_stale.(scope)
 
     :error, :undef ->
       # Only treat :undef as staleness when the missing function is this slot's
@@ -283,18 +294,11 @@ defmodule ExCellerate.NativeCompiler do
       # inside the expression is a real error and is re-raised untouched.
       case __STACKTRACE__ do
         [{^mod, :eval, args, _} | _] when args == 2 or length(args) == 2 ->
-          recompile_and_run(registry, expr, scope)
+          on_stale.(scope)
 
         stacktrace ->
           :erlang.raise(:error, :undef, stacktrace)
       end
-  end
-
-  defp recompile_and_run(registry, expr, scope) do
-    case ExCellerate.compile(expr, registry) do
-      {:ok, fun} -> fun.(scope)
-      {:error, error} -> raise error
-    end
   end
 
   # Creates a module under `name` whose `eval(scope, gen)` evaluates

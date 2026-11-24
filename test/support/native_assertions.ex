@@ -2,7 +2,7 @@ defmodule ExCellerate.Test.NativeAssertions do
   @moduledoc false
   import ExUnit.Assertions
 
-  # Native funs are guard closures (see ExCellerate.NativeCompiler.run/5) that
+  # Native funs are guard closures (see ExCellerate.NativeCompiler.run/4) that
   # close over the compiled module they call, rather than bare `&Mod.eval/1`
   # captures. Asserts `fun` is such a closure backed by a module named with
   # `prefix`.

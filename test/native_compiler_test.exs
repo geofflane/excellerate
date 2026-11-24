@@ -32,6 +32,14 @@ defmodule ExCellerate.NativeCompilerTest do
     use ExCellerate.Registry, plugins: [Block]
   end
 
+  # These tests drive the pool directly; a stale slot is only exercised by the
+  # tests that pass their own on_stale.
+  defp compile_cached(registry, expr, elixir_ast) do
+    NativeCompiler.compile_cached(registry, expr, elixir_ast, fn _scope ->
+      flunk("unexpected stale slot for #{expr}")
+    end)
+  end
+
   describe "compile/2" do
     test "native-compiled eval matches the interpreted result" do
       expr = "abs(-10) + round(1.5) + max(10, 20)"
@@ -87,7 +95,7 @@ defmodule ExCellerate.NativeCompilerTest do
     end
   end
 
-  describe "compile_cached/3 (GenServer)" do
+  describe "compile_cached/4 (GenServer)" do
     alias ExCellerate.{Compiler, NativeCompiler, Parser}
 
     defp elixir_ast!(expr) do
@@ -97,7 +105,7 @@ defmodule ExCellerate.NativeCompilerTest do
 
     test "compiles to a native module and returns its name" do
       start_supervised!({NativeCompiler, native_module_limit: 8})
-      {:ok, fun, mod} = NativeCompiler.compile_cached(nil, "1 + 2", elixir_ast!("1 + 2"))
+      {:ok, fun, mod} = compile_cached(nil, "1 + 2", elixir_ast!("1 + 2"))
 
       assert_native(fun)
       assert mod |> Atom.to_string() |> String.starts_with?("Elixir.ExCellerate.Compiled.S")
@@ -106,18 +114,18 @@ defmodule ExCellerate.NativeCompilerTest do
 
     test "dedups: same {registry, expr} reuses the same module" do
       start_supervised!({NativeCompiler, native_module_limit: 8})
-      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
-      {:ok, _f2, mod2} = NativeCompiler.compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      {:ok, _f1, mod1} = compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
+      {:ok, _f2, mod2} = compile_cached(nil, "7 * 6", elixir_ast!("7 * 6"))
       assert mod1 == mod2
     end
 
     @tag capture_log: true
     test "falls back to an interpreted closure when the pool is full" do
       start_supervised!({NativeCompiler, native_module_limit: 1})
-      {:ok, _f1, mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
+      {:ok, _f1, mod1} = compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
       assert is_atom(mod1) and mod1 != nil
 
-      {:ok, f2, mod2} = NativeCompiler.compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
+      {:ok, f2, mod2} = compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
       assert mod2 == nil
       assert Function.info(f2)[:module] == :erl_eval
       assert f2.(%{}) == 4
@@ -125,18 +133,18 @@ defmodule ExCellerate.NativeCompilerTest do
 
     test "warns once (per server) when the pool fills" do
       start_supervised!({NativeCompiler, native_module_limit: 1})
-      {:ok, _f1, _mod1} = NativeCompiler.compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
+      {:ok, _f1, _mod1} = compile_cached(nil, "1 + 1", elixir_ast!("1 + 1"))
 
       log =
         capture_log(fn ->
-          {:ok, _, nil} = NativeCompiler.compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
+          {:ok, _, nil} = compile_cached(nil, "2 + 2", elixir_ast!("2 + 2"))
         end)
 
       assert log =~ "module pool is full"
       assert log =~ "native_module_limit: 1"
 
       refute capture_log(fn ->
-               {:ok, _, nil} = NativeCompiler.compile_cached(nil, "3 + 3", elixir_ast!("3 + 3"))
+               {:ok, _, nil} = compile_cached(nil, "3 + 3", elixir_ast!("3 + 3"))
              end) =~ "module pool is full"
     end
 
@@ -159,22 +167,40 @@ defmodule ExCellerate.NativeCompilerTest do
     test "releasing a module purges it after the grace period and frees its slot for reuse" do
       start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 20})
 
-      {:ok, _fun_a, mod_a} = NativeCompiler.compile_cached(nil, "1 + 1", ast!("1 + 1"))
+      {:ok, _fun_a, mod_a} = compile_cached(nil, "1 + 1", ast!("1 + 1"))
       assert %{free: 0, by_key: 1} = NativeCompiler.pool_stats()
 
       NativeCompiler.release(nil, "1 + 1")
       wait_until(fn -> match?(%{by_key: 0, free: 1}, NativeCompiler.pool_stats()) end)
 
       # The freed slot (same atom) is reused for the next expression.
-      {:ok, fun_b, mod_b} = NativeCompiler.compile_cached(nil, "2 + 3", ast!("2 + 3"))
+      {:ok, fun_b, mod_b} = compile_cached(nil, "2 + 3", ast!("2 + 3"))
       assert mod_b == mod_a
       assert fun_b.(%{}) == 5
+    end
+
+    test "a fun whose slot was reused hands the scope to its on_stale" do
+      start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 20})
+      on_stale = fn scope -> {:stale, scope} end
+
+      {:ok, held, mod_a} = NativeCompiler.compile_cached(nil, "a + 1", ast!("a + 1"), on_stale)
+      assert held.(%{"a" => 1}) == 2
+
+      NativeCompiler.release(nil, "a + 1")
+      wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
+
+      # Purged, slot not yet reused: the module is gone.
+      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}}
+
+      # Slot reused by another expression: the generation no longer matches.
+      {:ok, _other, ^mod_a} = compile_cached(nil, "a * 5", ast!("a * 5"))
+      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}}
     end
 
     test "a function captured just before release still evaluates during the grace window" do
       start_supervised!({NativeCompiler, native_module_limit: 4, native_purge_grace_ms: 1000})
 
-      {:ok, fun, _mod} = NativeCompiler.compile_cached(nil, "10 * 2", ast!("10 * 2"))
+      {:ok, fun, _mod} = compile_cached(nil, "10 * 2", ast!("10 * 2"))
       NativeCompiler.release(nil, "10 * 2")
 
       # Within the (long) grace window the captured fun is still valid.
@@ -199,7 +225,7 @@ defmodule ExCellerate.NativeCompilerTest do
       expr = "block(parent) + 1"
       {:ok, ast} = Parser.parse(expr)
       elixir_ast = Compiler.compile(ast, BlockReg)
-      {:ok, fun, mod} = NativeCompiler.compile_cached(BlockReg, expr, elixir_ast)
+      {:ok, fun, mod} = compile_cached(BlockReg, expr, elixir_ast)
 
       # Run the native fun in another process and wait until it is blocked
       # inside the module's code.
