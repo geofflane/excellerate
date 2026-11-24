@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `if`, `ifs`, `ifnull`, `coalesce`, `switch`, `and`, and `or` now evaluate only the arguments they need, like `&&`, `||`, and the ternary. Previously every argument was evaluated first, so `if(x != 0, 10 / x, 0)` raised when `x` was `0`. Results are unchanged for any expression that did not raise. A registry's own function with one of these names is still called normally.
+- `ExCellerate.Cache` no longer writes on every hit: a hit records recency only if the entry has not been used since the last insert, so reads of hot expressions from many processes stop contending on the same rows (about 13× faster per hit with 14 concurrent readers). Insertion keeps a per-registry entry count instead of counting the table on every `put`. Entries read between the same two inserts now count as equally recent for eviction.
 - `ExCellerate.NativeCompiler` logs a one-time warning when its module pool fills, since new expressions then silently lose native compilation.
 - Documentation: corrected the native atom-cost note. The cost is 1 atom per native *compile* (including a recompile after cache eviction), not per distinct expression, so size `cache_limit` to hold every distinct expression. Also documented that the module pool is shared across registries.
 

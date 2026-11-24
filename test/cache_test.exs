@@ -56,6 +56,65 @@ defmodule ExCellerate.CacheTest do
     assert {:ok, :val_z} = ExCellerate.Cache.get(LimitRegistry, "z")
   end
 
+  test "repeated hits on an entry do not rewrite it until something is inserted" do
+    # Every hit used to write the entry's timestamp, so concurrent readers of a
+    # hot expression contended on the same row. A hit now writes only when the
+    # entry has not been touched since the last insert.
+    ExCellerate.Cache.put(LimitRegistry, "a", :val_a, nil)
+    assert {:ok, :val_a} = ExCellerate.Cache.get(LimitRegistry, "a")
+    touched = last_accessed(LimitRegistry, "a")
+
+    for _ <- 1..50, do: ExCellerate.Cache.get(LimitRegistry, "a")
+    assert last_accessed(LimitRegistry, "a") == touched
+
+    ExCellerate.Cache.put(LimitRegistry, "b", :val_b, nil)
+    ExCellerate.Cache.get(LimitRegistry, "a")
+    assert last_accessed(LimitRegistry, "a") > touched
+  end
+
+  test "re-putting an existing key does not count it twice" do
+    ExCellerate.Cache.put(LimitRegistry, "a", :val_a, nil)
+    ExCellerate.Cache.put(LimitRegistry, "a", :val_a2, nil)
+    ExCellerate.Cache.put(LimitRegistry, "b", :val_b, nil)
+
+    # cache_limit is 2 and there are 2 distinct keys: nothing is evicted.
+    assert {:ok, :val_a2} = ExCellerate.Cache.get(LimitRegistry, "a")
+    assert {:ok, :val_b} = ExCellerate.Cache.get(LimitRegistry, "b")
+  end
+
+  test "concurrent puts of one key count it once" do
+    1..50
+    |> Enum.map(fn i ->
+      Task.async(fn -> ExCellerate.Cache.put(LimitRegistry, "a", i, nil) end)
+    end)
+    |> Task.await_many()
+
+    ExCellerate.Cache.put(LimitRegistry, "b", :val_b, nil)
+
+    assert {:ok, _} = ExCellerate.Cache.get(LimitRegistry, "a")
+    assert {:ok, :val_b} = ExCellerate.Cache.get(LimitRegistry, "b")
+  end
+
+  test "eviction and clear keep the entry count accurate" do
+    for key <- ["a", "b", "c"], do: ExCellerate.Cache.put(LimitRegistry, key, key, nil)
+    # "a" was evicted; one more insert evicts exactly one more ("b").
+    ExCellerate.Cache.put(LimitRegistry, "d", "d", nil)
+    assert :error = ExCellerate.Cache.get(LimitRegistry, "b")
+    assert {:ok, "c"} = ExCellerate.Cache.get(LimitRegistry, "c")
+    assert {:ok, "d"} = ExCellerate.Cache.get(LimitRegistry, "d")
+
+    ExCellerate.Cache.clear()
+    ExCellerate.Cache.put(LimitRegistry, "e", "e", nil)
+    ExCellerate.Cache.put(LimitRegistry, "f", "f", nil)
+    assert {:ok, "e"} = ExCellerate.Cache.get(LimitRegistry, "e")
+    assert {:ok, "f"} = ExCellerate.Cache.get(LimitRegistry, "f")
+  end
+
+  defp last_accessed(registry, key) do
+    [{_, _value, ts, _mod}] = :ets.lookup(:excellerate_cache, {registry, key})
+    ts
+  end
+
   test "caching can be disabled per registry" do
     NoCacheRegistry.eval!("1 + 1")
     assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error
