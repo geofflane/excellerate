@@ -31,9 +31,20 @@ defmodule ExCellerate.Supervisor do
     end
   end
 
+  @doc false
+  # Child spec for ExCellerate.NativeCompiler. Public so tests can start the
+  # compiler with the same wiring the supervisor uses. On every (re)start the
+  # compiler drops cached native funs, whose modules belonged to the previous
+  # server. Passed as an MFA so NativeCompiler doesn't depend on Cache, which
+  # depends on it.
+  def native_compiler_spec(opts \\ []) do
+    {ExCellerate.NativeCompiler,
+     Keyword.put_new(opts, :on_init, {ExCellerate.Cache, :drop_native_entries, []})}
+  end
+
   defp start_native_compiler do
     if Process.whereis(__MODULE__) do
-      case DynamicSupervisor.start_child(__MODULE__, ExCellerate.NativeCompiler) do
+      case DynamicSupervisor.start_child(__MODULE__, native_compiler_spec()) do
         {:ok, pid} -> {:ok, pid}
         {:error, {:already_started, pid}} -> {:ok, pid}
         {:error, _reason} -> :error

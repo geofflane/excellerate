@@ -28,13 +28,16 @@ defmodule ExCellerate.Compilation.NativeCompiled do
   alias ExCellerate.NativeCompiler
 
   @warn_flag :excellerate_native_exit_warned
+  @recovering :excellerate_native_recovering
 
   @impl true
   def build(registry, expression, elixir_ast) do
     case ExCellerate.Supervisor.ensure_native_compiler() do
       {:ok, _pid} ->
         try do
-          on_stale = fn scope -> recompile_and_run(registry, expression, scope) end
+          on_stale = fn scope, stale_mod ->
+            recompile_and_run(registry, expression, scope, stale_mod)
+          end
 
           {:ok, fun, mod_name} =
             NativeCompiler.compile_cached(registry, expression, elixir_ast, on_stale)
@@ -59,13 +62,42 @@ defmodule ExCellerate.Compilation.NativeCompiled do
     end
   end
 
-  # A function returned by compile/2 can outlive its cache entry. Once its
-  # pooled module slot is released, it evaluates by compiling the expression
-  # again through ExCellerate.compile/2, so the new module is cached (and later
-  # released by eviction) like any other.
-  defp recompile_and_run(registry, expression, scope) do
-    case ExCellerate.compile(expression, registry) do
-      {:ok, fun} -> fun.(scope)
+  # A function returned by compile/2 can outlive its module: its cache entry was
+  # evicted and its pooled slot released, or NativeCompiler restarted. It then
+  # evaluates by compiling the expression again through ExCellerate.compile/2, so
+  # the new module is cached (and later released by eviction) like any other.
+  #
+  # The cache may still hold this same stale fun (a restart, or an eviction that
+  # raced a put), and compile/2 would hand it straight back, looping forever. So
+  # first drop any entry still bound to the stale module.
+  #
+  # If the fresh module also goes stale before it runs (another restart or
+  # eviction in between), recovery re-enters for the same expression. That call
+  # is evaluated interpreted instead of retrying, so recovery always terminates.
+  defp recompile_and_run(registry, expression, scope, stale_mod) do
+    key = {@recovering, registry, expression}
+
+    if Process.get(key) do
+      run_interpreted(registry, expression, scope)
+    else
+      Process.put(key, true)
+
+      try do
+        ExCellerate.Cache.delete_stale(registry, expression, stale_mod)
+
+        case ExCellerate.compile(expression, registry) do
+          {:ok, fun} -> fun.(scope)
+          {:error, error} -> raise error
+        end
+      after
+        Process.delete(key)
+      end
+    end
+  end
+
+  defp run_interpreted(registry, expression, scope) do
+    case ExCellerate.Parser.parse(expression) do
+      {:ok, ast} -> Interpreted.build_fun(ExCellerate.Compiler.compile(ast, registry)).(scope)
       {:error, error} -> raise error
     end
   end

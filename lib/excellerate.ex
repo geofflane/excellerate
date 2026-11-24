@@ -16,6 +16,10 @@ defmodule ExCellerate do
   - **Ternary**: `condition ? true_val : false_val`
   - **Data access**: `user.profile.name`, `list[0]`, `list[-1]`, `list[*].field` (spread)
 
+  `true`, `false`, `null`, and `not` are reserved words, so they can't be used as
+  variable or function names. A key with one of these names is still reachable
+  through its parent: `row.not`, `row['null']`.
+
   ## Built-in Functions
 
   ### Math
@@ -325,6 +329,12 @@ defmodule ExCellerate do
   time a native compile happens (supervised by the `:excellerate` application), so
   there is no supervision wiring and it works whether native is selected globally
   or only on a single registry. Nothing is started for interpreted-only use.
+
+  A function returned by `compile/2` keeps working for as long as you hold it,
+  even after its expression is evicted from the cache or `NativeCompiler`
+  restarts: when its module is gone, it recompiles the expression on its next
+  call. A restarted `NativeCompiler` drops the native entries from the cache,
+  since their modules belonged to the previous process.
 
   The `ExCellerate.Cache` (compiled-function cache) is separate and opt-in — add
   it to your own supervision tree. See the README for the `native_module_limit` /

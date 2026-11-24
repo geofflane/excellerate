@@ -85,10 +85,9 @@ defmodule ExCellerate.Compiler do
   # existing atom and use Map.get.
   @doc false
   def struct_get(struct, key, default) when is_binary(key) do
-    try do
-      Map.get(struct, String.to_existing_atom(key), default)
-    rescue
-      ArgumentError -> default
+    case fetch_atom_key(struct, key) do
+      {:ok, val} -> val
+      :error -> default
     end
   end
 
@@ -105,10 +104,9 @@ defmodule ExCellerate.Compiler do
   def map_get(map, key, default) when is_map(map) and is_binary(key) do
     case Access.get(map, key, @not_found_sentinel) do
       @not_found_sentinel ->
-        try do
-          Access.get(map, String.to_existing_atom(key), default)
-        rescue
-          ArgumentError -> default
+        case fetch_atom_key(map, key) do
+          {:ok, val} -> val
+          :error -> default
         end
 
       val ->
@@ -127,12 +125,18 @@ defmodule ExCellerate.Compiler do
         hit
 
       :error ->
-        try do
-          Map.fetch(scope, String.to_existing_atom(name))
-        rescue
-          ArgumentError -> :error
-        end
+        fetch_atom_key(scope, name)
     end
+  end
+
+  # Fetches `key` from a map's atom keys, if the atom already exists (never
+  # creates one). String.to_existing_atom/1 raises on a miss, which is cheap on a
+  # shallow stack; spread/2 and flat_spread/2 below iterate tail-recursively so
+  # misses inside a spread stay cheap too.
+  defp fetch_atom_key(map, key) do
+    Map.fetch(map, String.to_existing_atom(key))
+  rescue
+    ArgumentError -> :error
   end
 
   # Called from generated AST to build the scope for each computed spread item.
@@ -422,7 +426,7 @@ defmodule ExCellerate.Compiler do
   # Called from generated AST to map over a list for [*] spread.
   @doc false
   def spread(list, fun) when is_list(list) do
-    Enum.map(list, fun)
+    map_flat_stack(list, fun, [])
   end
 
   def spread(value, _fun) do
@@ -438,7 +442,7 @@ defmodule ExCellerate.Compiler do
   def flat_spread(list, fun) when is_list(list) do
     list
     |> List.flatten()
-    |> Enum.map(fun)
+    |> map_flat_stack(fun, [])
   end
 
   def flat_spread(value, _fun) do
@@ -446,6 +450,13 @@ defmodule ExCellerate.Compiler do
       message: "spread [*] requires a list, got #{inspect(value)}",
       type: :runtime
   end
+
+  # Maps `fun` over `list` tail-recursively, so the stack doesn't grow with the
+  # list. Enum.map/2 is body-recursive, and anything raised by `fun` (including a
+  # rescued, expected exception) costs time proportional to the stack depth, which
+  # made per-row exceptions quadratic over large lists.
+  defp map_flat_stack([item | rest], fun, acc), do: map_flat_stack(rest, fun, [fun.(item) | acc])
+  defp map_flat_stack([], _fun, acc), do: :lists.reverse(acc)
 
   # Builds the AST that accesses nested fields within each spread item.
   defp build_spread_body(item_var, [], _registry), do: item_var
@@ -480,13 +491,9 @@ defmodule ExCellerate.Compiler do
         val
 
       :error ->
-        try do
-          case Map.fetch(target, String.to_existing_atom(key)) do
-            {:ok, val} -> val
-            :error -> nil
-          end
-        rescue
-          ArgumentError -> nil
+        case fetch_atom_key(target, key) do
+          {:ok, val} -> val
+          :error -> nil
         end
     end
   end

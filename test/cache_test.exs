@@ -115,6 +115,40 @@ defmodule ExCellerate.CacheTest do
     ts
   end
 
+  test "delete_stale/3 removes an entry only while it is bound to the stale module" do
+    alias ExCellerate.Cache
+
+    Cache.put(LimitRegistry, "x", :fun_a, ModA)
+    Cache.delete_stale(LimitRegistry, "x", ModB)
+    assert {:ok, :fun_a} = Cache.get(LimitRegistry, "x")
+
+    Cache.delete_stale(LimitRegistry, "x", ModA)
+    assert :error = Cache.get(LimitRegistry, "x")
+
+    # The count was decremented: two more entries fit under cache_limit: 2.
+    Cache.put(LimitRegistry, "y", :fun_y, nil)
+    Cache.put(LimitRegistry, "z", :fun_z, nil)
+    assert {:ok, :fun_y} = Cache.get(LimitRegistry, "y")
+    assert {:ok, :fun_z} = Cache.get(LimitRegistry, "z")
+  end
+
+  test "drop_native_entries/0 removes native entries and keeps interpreted ones" do
+    alias ExCellerate.Cache
+
+    Cache.put(LimitRegistry, "native", :native_fun, ModA)
+    Cache.put(LimitRegistry, "interp", :interp_fun, nil)
+
+    Cache.drop_native_entries()
+
+    assert :error = Cache.get(LimitRegistry, "native")
+    assert {:ok, :interp_fun} = Cache.get(LimitRegistry, "interp")
+
+    # The count was decremented: one more entry fits under cache_limit: 2.
+    Cache.put(LimitRegistry, "other", :other_fun, nil)
+    assert {:ok, :interp_fun} = Cache.get(LimitRegistry, "interp")
+    assert {:ok, :other_fun} = Cache.get(LimitRegistry, "other")
+  end
+
   test "caching can be disabled per registry" do
     NoCacheRegistry.eval!("1 + 1")
     assert ExCellerate.Cache.get(NoCacheRegistry, "1 + 1") == :error

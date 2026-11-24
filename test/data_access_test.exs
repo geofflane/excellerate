@@ -214,4 +214,77 @@ defmodule ExCellerate.DataAccessTest do
       assert ExCellerate.eval!("(a || b).profile.name", scope) == "Alice"
     end
   end
+
+  describe "string and atom key lookup" do
+    # Keys are tried as strings first, then as an existing atom. Each case runs
+    # interpreted and natively compiled, on small and large (hash) maps.
+    alias ExCellerate.NativeCompiler
+
+    defp eval_both(expr, scope) do
+      interpreted = ExCellerate.eval!(expr, scope)
+      native = NativeCompiler.compile!(expr).(scope)
+      assert native == interpreted
+      interpreted
+    end
+
+    defp wide_atom_map(extra), do: Map.merge(Map.new(1..40, &{:"wide_#{&1}", &1}), extra)
+
+    test "atom-keyed maps, small and large" do
+      for map <- [%{foo: 1}, wide_atom_map(%{foo: 1})] do
+        assert eval_both("x.foo", %{"x" => map}) == 1
+        assert eval_both("x['foo']", %{"x" => map}) == 1
+        assert eval_both("x.nope", %{"x" => map}) == nil
+        assert eval_both("xs[*].foo", %{"xs" => [map, map]}) == [1, 1]
+        assert eval_both("xs[*].nope", %{"xs" => [map]}) == [nil]
+      end
+    end
+
+    test "string keys win over atom keys of the same name" do
+      for map <- [%{"foo" => 1, foo: 2}, wide_atom_map(%{"foo" => 1, foo: 2})] do
+        assert eval_both("x.foo", %{"x" => map}) == 1
+        assert eval_both("xs[*].foo", %{"xs" => [map]}) == [1]
+      end
+    end
+
+    test "dynamic bracket keys fall back to atom keys" do
+      for map <- [%{foo: 1}, wide_atom_map(%{foo: 1})] do
+        assert eval_both("x[k]", %{"x" => map, "k" => "foo"}) == 1
+        assert eval_both("x[k]", %{"x" => map, "k" => "nope"}) == nil
+      end
+    end
+
+    test "struct fields, present and missing" do
+      scope = %{"uri" => URI.parse("https://example.com"), "uris" => [URI.parse("http://a")]}
+      assert eval_both("uri.host", scope) == "example.com"
+      assert eval_both("uri.nope", scope) == nil
+      assert eval_both("uris[*].host", scope) == ["a"]
+      assert eval_both("uris[*].nope", scope) == [nil]
+    end
+
+    test "atom-keyed top-level scopes, small and large" do
+      for scope <- [%{foo: 1}, wide_atom_map(%{foo: 1})] do
+        assert eval_both("foo", scope) == 1
+        assert {:error, %ExCellerate.Error{}} = ExCellerate.eval("nope", scope)
+      end
+    end
+
+    test "an atom key created after the expression was compiled is found" do
+      for size <- [:small, :large] do
+        name = "late_#{size}_#{System.unique_integer([:positive])}"
+        {:ok, dot} = ExCellerate.compile("x.#{name}")
+        {:ok, spread} = ExCellerate.compile("xs[*].#{name}")
+        {:ok, top} = ExCellerate.compile(name)
+        native = NativeCompiler.compile!("x.#{name}")
+
+        # The atom doesn't exist until after compilation.
+        atom = String.to_atom(name)
+        map = if size == :small, do: %{atom => 5}, else: wide_atom_map(%{atom => 5})
+
+        assert dot.(%{"x" => map}) == 5
+        assert spread.(%{"xs" => [map]}) == [5]
+        assert top.(map) == 5
+        assert native.(%{"x" => map}) == 5
+      end
+    end
+  end
 end

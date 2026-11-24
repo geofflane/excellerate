@@ -10,15 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - A call on a computed value (`x.m(1)`, `list[0](1)`, `items[*].m()`, `abs(1)(2)`) dispatched to whatever module atom the evaluated value held, bypassing the registry allowlist. If the scope data contained a module atom exposing `call/1`, an expression could invoke it. Such calls are now rejected at compile time with a `:compiler` error; only names that resolve through the registry or defaults can be called.
+- Unclosed nested `not(` (e.g. `not(not(not(…1`) took exponential time to reject: each level was parsed both as the `not` operator and as a call to a function named `not`, so an 81-byte expression took about 3.5 seconds and each extra level doubled that. `not` is now a reserved word and such input is rejected in linear time.
 
 ### Fixed
 
 - Identifiers beginning with `not` (e.g. `notable`, `nothing`, `not_set`) were parsed as the `not` operator applied to the rest of the name, so `notable` evaluated as `not(able)`. The `not` keyword now requires a word boundary.
 - Under `ExCellerate.Compilation.NativeCompiled`, a function returned by `compile/2` and held by the caller could silently evaluate a *different* expression after its cache entry was evicted and its pooled module slot reused (or raise `UndefinedFunctionError` once the slot was purged). Compiled modules are now generation-tagged, and returned functions detect a stale slot and transparently recompile, so held functions stay correct indefinitely.
+- Under `ExCellerate.Compilation.NativeCompiled`, a cached expression could hang its caller forever after `ExCellerate.NativeCompiler` restarted (or, rarely, after an eviction raced a compile): the restarted pool reused the cached function's module name, and the function's recovery recompiled through the cache, got the same stale function back, and retried endlessly. Recovery now drops the stale cache entry before recompiling and always terminates, and a restarted `NativeCompiler` drops native cache entries and unloads its predecessor's modules.
+- A key missing from the rows of a large list (`rows[*].nope`, including nested and computed spreads) took quadratic time: each miss raised and rescued an exception inside the spread's body-recursive loop, and an exception's cost grows with the stack depth. 40,000 rows took about 3.4 seconds instead of 19 ms. Spreads now iterate tail-recursively, so a miss costs about the same as a hit. Results are unchanged.
 - `ExCellerate.Cache.clear/0` now releases the native modules behind the entries it drops. Previously their pool slots were never returned.
 
 ### Changed
 
+- `not` is now a reserved word, like `true`, `false`, and `null`. A bare variable named `not` (`eval("not", %{"not" => 1})`) and a registry function named `not` are no longer usable; a key named `not` is still reachable through its parent (`row.not`, `row['not']`).
 - `if`, `ifs`, `ifnull`, `coalesce`, `switch`, `and`, and `or` now evaluate only the arguments they need, like `&&`, `||`, and the ternary. Previously every argument was evaluated first, so `if(x != 0, 10 / x, 0)` raised when `x` was `0`. Results are unchanged for any expression that did not raise. A registry's own function with one of these names is still called normally.
 - `ExCellerate.Cache` no longer writes on every hit: a hit records recency only if the entry has not been used since the last insert, so reads of hot expressions from many processes stop contending on the same rows (about 13× faster per hit with 14 concurrent readers). Insertion keeps a per-registry entry count instead of counting the table on every `put`. Entries read between the same two inserts now count as equally recent for eviction.
 - `ExCellerate.NativeCompiler` logs a one-time warning when its module pool fills, since new expressions then silently lose native compilation.
