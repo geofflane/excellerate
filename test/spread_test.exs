@@ -266,4 +266,50 @@ defmodule ExCellerate.SpreadTest do
       assert fun.(other) == 700
     end
   end
+
+  describe "missing keys across large lists" do
+    # A missing key must cost the same per row as a present one. Raising inside
+    # the spread's per-row loop used to cost time proportional to the stack
+    # depth, which grew with the list: 40k rows took about 3.4 seconds.
+    import ExCellerate.Test.Bounded
+
+    test "a missing key across 100k rows is linear" do
+      rows = for i <- 1..100_000, do: %{"x" => i}
+
+      result = within(2_000, fn -> ExCellerate.eval!("rows[*].nope", %{"rows" => rows}) end)
+
+      assert length(result) == 100_000
+      assert Enum.all?(result, &is_nil/1)
+    end
+
+    test "a missing key in a nested spread is linear" do
+      rows = for i <- 1..20_000, do: %{"items" => for(j <- 1..5, do: %{"v" => i * j})}
+
+      result =
+        within(2_000, fn -> ExCellerate.eval!("rows[*].items[*].nope", %{"rows" => rows}) end)
+
+      assert length(result) == 100_000
+      assert Enum.all?(result, &is_nil/1)
+    end
+
+    test "a missing key inside a computed spread is linear" do
+      rows = for i <- 1..100_000, do: %{"meta" => %{"id" => i}}
+
+      result =
+        within(2_000, fn -> ExCellerate.eval!("rows[*].(meta.nope)", %{"rows" => rows}) end)
+
+      assert length(result) == 100_000
+      assert Enum.all?(result, &is_nil/1)
+    end
+
+    test "a missing key across wide (hash-map) rows is linear" do
+      wide = Map.new(1..40, &{"k#{&1}", &1})
+      rows = for i <- 1..50_000, do: Map.put(wide, "x", i)
+
+      result = within(2_000, fn -> ExCellerate.eval!("rows[*].nope", %{"rows" => rows}) end)
+
+      assert length(result) == 50_000
+      assert Enum.all?(result, &is_nil/1)
+    end
+  end
 end
