@@ -19,8 +19,9 @@ defmodule ExCellerate.Compilation.Strategy do
   Select one globally with `config :excellerate, compilation: <strategy module>`
   or per-registry with `use ExCellerate.Registry, compilation: <strategy module>`.
   Custom strategies may implement this behaviour; a strategy that returns a
-  non-nil `mod_name` is responsible for that module's purge lifecycle (see
-  `ExCellerate.NativeCompiler`).
+  non-nil `mod_name` is responsible for that module's purge lifecycle, as the
+  native compiler process behind `ExCellerate.Compilation.NativeCompiled` is for
+  the modules it loads.
   """
 
   @doc """

@@ -1,14 +1,14 @@
 defmodule ExCellerate.Compilation.NativeCompiled do
   @moduledoc """
   Compilation strategy that compiles each expression into a real, loaded BEAM
-  module (via `ExCellerate.NativeCompiler`) and evaluates it as compiled code.
+  module (via a dedicated native compiler process) and evaluates it as compiled code.
   Substantially faster on the warm path with far lower per-call allocation than
   the interpreter. Opt in with `config :excellerate, compilation: __MODULE__`
   (the default strategy is `ExCellerate.Compilation.Interpreted`).
 
-  The `ExCellerate.NativeCompiler` process this needs is started on demand the
-  first time a native compile is requested (supervised by the `:excellerate`
-  application's `ExCellerate.Supervisor`), so no supervision wiring is required
+  The native compiler process this needs is started on demand the first time a
+  native compile is requested (supervised by the `:excellerate` application), so
+  no supervision wiring is required
   and native works whether selected globally or only on a single registry. If it
   cannot be started — or a transient race causes the compile call to exit — this
   strategy degrades to `ExCellerate.Compilation.Interpreted` rather than crashing

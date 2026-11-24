@@ -325,8 +325,8 @@ defmodule ExCellerate do
 
       use ExCellerate.Registry, compilation: ExCellerate.Compilation.NativeCompiled
 
-  The `ExCellerate.NativeCompiler` process it needs is started on demand the first
-  time a native compile happens (supervised by the `:excellerate` application), so
+  The native compiler process it needs is started on demand the first time a
+  native compile happens (supervised by the `:excellerate` application), so
   there is no supervision wiring and it works whether native is selected globally
   or only on a single registry. Nothing is started for interpreted-only use.
 
