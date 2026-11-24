@@ -136,6 +136,11 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
       new_pid = Process.whereis(NativeCompiler)
       new_pid != nil and new_pid != pid
     end)
+
+    # The name is registered before init/1 runs, so the new process can be
+    # visible while its restart cleanup is still running. A call is only served
+    # once init/1 has returned, so this waits for the cleanup to finish.
+    NativeCompiler.pool_stats()
   end
 
   defp native_cache_mods do
