@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- A call on a computed value (`x.m(1)`, `list[0](1)`, `items[*].m()`, `abs(1)(2)`) dispatched to whatever module atom the evaluated value held, bypassing the registry allowlist. If the scope data contained a module atom exposing `call/1`, an expression could invoke it. Such calls are now rejected at compile time with a `:compiler` error; only names that resolve through the registry or defaults can be called.
+
 ### Fixed
 
 - Identifiers beginning with `not` (e.g. `notable`, `nothing`, `not_set`) were parsed as the `not` operator applied to the rest of the name, so `notable` evaluated as `not(able)`. The `not` keyword now requires a word boundary.

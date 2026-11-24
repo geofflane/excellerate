@@ -507,15 +507,14 @@ defmodule ExCellerate.Compiler do
         compile_named_call(name, args_list, registry)
 
       _ ->
-        # Dynamic function call target (non-name) - evaluate normally
-        args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
-        args_var = Macro.unique_var(:actual_args, __MODULE__)
-        target_ast = to_elixir_ast(target, registry)
-
-        quote do
-          unquote(args_var) = [unquote_splicing(args_ast)]
-          ExCellerate.Compiler.dispatch_call(unquote(target_ast), unquote(args_var))
-        end
+        # A computed call target (`x.m(1)`, `(x)(1)`, `list[0](1)`, ...) would
+        # invoke whatever module atom the data holds, bypassing the registry
+        # allowlist. Only names resolved above may be called.
+        raise ExCellerate.Error,
+          message:
+            "only named functions can be called (e.g. `abs(x)`); " <>
+              "a call on a computed value is not allowed",
+          type: :compiler
     end
   end
 

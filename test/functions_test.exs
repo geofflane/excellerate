@@ -902,6 +902,30 @@ defmodule ExCellerate.FunctionsTest do
 
       assert msg =~ "unknown function"
     end
+
+    test "calls on a computed target are rejected at compile time" do
+      # A module atom in the data must not be callable: only names resolved
+      # through the registry/defaults may be invoked.
+      scope = %{
+        "x" => %{"m" => ExCellerate.Test.CallProbe},
+        "p" => ExCellerate.Test.CallProbe,
+        "list" => [ExCellerate.Test.CallProbe]
+      }
+
+      for expr <- ["x.m(1)", "list[0](1)", "x['m'](1)", "list[*].m()", "abs(1)(2)"] do
+        assert {:error, %ExCellerate.Error{type: :compiler, message: msg}} =
+                 ExCellerate.eval(expr, scope),
+               "expected #{expr} to be rejected"
+
+        assert msg =~ "only named functions can be called"
+      end
+
+      # `(p)(1)` parses as a call to the name `p`, which is not registered.
+      assert {:error, %ExCellerate.Error{type: :compiler, message: "unknown function: p"}} =
+               ExCellerate.eval("(p)(1)", scope)
+
+      refute_received {:call_probe, _}
+    end
   end
 
   describe "list_functions/0" do
