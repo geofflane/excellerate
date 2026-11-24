@@ -186,6 +186,8 @@ MyApp.Registry.eval!("max(10, 20)")
 
 ### Utility Functions
 
+`if`, `ifs`, `ifnull`, `coalesce`, `switch`, `and`, and `or` evaluate only the arguments they need, like `&&`, `||`, and `? :`. For example, `if(x != 0, 10 / x, 0)` returns `0` when `x` is `0` instead of raising. A registry that defines its own function with one of these names gets an ordinary call, with every argument evaluated.
+
 - `if(cond, true_val)` / `if(cond, true_val, false_val)`: Functional if-statement. The 2-arg form returns `nil` when falsy.
 - `ifs(cond1, val1, cond2, val2, ...)`: Returns the value for the first truthy condition. Use `true` as the final condition for a default. Returns `nil` if no conditions match.
 - `ifnull(val, default)`: Returns `default` if `val` is `nil`.

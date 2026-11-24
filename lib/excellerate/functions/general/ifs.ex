@@ -7,6 +7,9 @@ defmodule ExCellerate.Functions.General.Ifs do
   value2, ...`. Use `true` as the final condition to provide a default.
   Returns `null` if no conditions are met.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       ifs(score > 90, 'A', score > 80, 'B', true, 'C')

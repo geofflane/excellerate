@@ -6,6 +6,9 @@ defmodule ExCellerate.Functions.General.If do
   false. With three arguments, returns the third argument as the else
   value.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       if(true, 'yes', 'no')       → 'yes'

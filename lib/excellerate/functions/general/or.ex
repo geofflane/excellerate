@@ -4,6 +4,9 @@ defmodule ExCellerate.Functions.General.Or do
 
   Accepts any number of arguments.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       or(false, false, true)  → true

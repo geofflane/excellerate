@@ -3,6 +3,8 @@ defmodule ExCellerate.Compiler do
   # Internal: Transforms ExCellerate IR into Elixir AST.
   # This module is not intended to be used directly by library consumers.
 
+  alias ExCellerate.Compiler.Lazy
+
   # Private sentinel for detecting missing keys in access expressions.
   # Using a unique tuple avoids collisions with legitimate user data.
   @not_found_sentinel {__MODULE__, :not_found}
@@ -242,11 +244,18 @@ defmodule ExCellerate.Compiler do
       end
 
     args_ast = Enum.map(args_list, fn arg -> to_elixir_ast(arg, registry) end)
-    args_var = Macro.unique_var(:actual_args, __MODULE__)
 
-    quote do
-      unquote(args_var) = [unquote_splicing(args_ast)]
-      ExCellerate.Compiler.dispatch_call(unquote(module), unquote(args_var))
+    case Lazy.expand(module, args_ast) do
+      {:ok, lazy_ast} ->
+        lazy_ast
+
+      :eager ->
+        args_var = Macro.unique_var(:actual_args, __MODULE__)
+
+        quote do
+          unquote(args_var) = [unquote_splicing(args_ast)]
+          ExCellerate.Compiler.dispatch_call(unquote(module), unquote(args_var))
+        end
     end
   end
 

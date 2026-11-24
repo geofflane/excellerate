@@ -8,6 +8,9 @@ defmodule ExCellerate.Functions.General.Switch do
   the last argument is used as a default. Returns `null` if nothing
   matches and no default is given.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       switch(status, 'active', 'Running', 'paused', 'Paused', 'Unknown')

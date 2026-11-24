@@ -4,6 +4,9 @@ defmodule ExCellerate.Functions.General.And do
 
   Accepts any number of arguments.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       and(true, true, true)  → true

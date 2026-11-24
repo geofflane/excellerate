@@ -5,6 +5,9 @@ defmodule ExCellerate.Functions.General.Coalesce do
   Returns `null` if all arguments are `null`. Accepts any number of
   arguments.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       coalesce(null, null, 'found') → 'found'

@@ -2,6 +2,9 @@ defmodule ExCellerate.Functions.General.IfNull do
   @moduledoc """
   Returns the value if it is not null, otherwise returns the default.
 
+  Only the arguments needed for the result are evaluated: the expression
+  compiles to a conditional, not an ordinary function call.
+
   ## Examples
 
       ifnull(name, 'Anonymous') → 'Alice' (when name is 'Alice')
