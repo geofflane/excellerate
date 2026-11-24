@@ -21,10 +21,125 @@ defmodule ExCellerate.NativeCompilationIntegrationTest do
     end
 
     Cache.clear()
-    start_supervised!({NativeCompiler, native_purge_grace_ms: 20})
+    # Same child spec the app supervisor uses (including its restart hook), so a
+    # killed compiler is restarted here exactly as it would be in production.
+    start_supervised!(ExCellerate.Supervisor.native_compiler_spec(native_purge_grace_ms: 20))
     Application.put_env(:excellerate, :compilation, ExCellerate.Compilation.NativeCompiled)
     on_exit(fn -> Application.delete_env(:excellerate, :compilation) end)
     :ok
+  end
+
+  describe "stale-slot recovery always terminates" do
+    import ExCellerate.Test.Bounded
+    import ExUnit.CaptureIO
+
+    test "a cached expression recovers after the compiler restarts and reuses its slot" do
+      {:ok, _} = ExCellerate.compile("a + 1")
+      kill_native_compiler()
+
+      # The restarted server's pool starts empty, so this takes the same slot.
+      assert within(2_000, fn -> ExCellerate.eval!("a * 5", %{"a" => 10}) end) == 50
+      assert within(2_000, fn -> ExCellerate.eval!("a + 1", %{"a" => 10}) end) == 11
+      assert within(2_000, fn -> ExCellerate.eval!("a * 5", %{"a" => 10}) end) == 50
+    end
+
+    test "a held fun keeps working after the compiler restarts and reuses its slot" do
+      {:ok, held} = ExCellerate.compile("a + 1")
+      kill_native_compiler()
+      {:ok, _} = ExCellerate.compile("a * 5")
+
+      for _ <- 1..3 do
+        assert within(2_000, fn -> held.(%{"a" => 10}) end) == 11
+      end
+    end
+
+    test "a cached expression recovers after a graceful restart purges every module" do
+      {:ok, held} = ExCellerate.compile("a + 1")
+      stop_supervised!(NativeCompiler)
+      start_supervised!(ExCellerate.Supervisor.native_compiler_spec(native_purge_grace_ms: 20))
+
+      assert within(2_000, fn -> ExCellerate.eval!("a + 1", %{"a" => 10}) end) == 11
+      assert within(2_000, fn -> held.(%{"a" => 10}) end) == 11
+    end
+
+    test "a stale fun left in the cache (eviction race) is replaced, not reused" do
+      # Reproduces the race where a released fun is put back into the cache:
+      # release the slot but leave the cache entry, then wait for the purge.
+      {:ok, stale} = ExCellerate.compile("a + 1")
+      NativeCompiler.release(nil, "a + 1")
+      wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
+      assert {:ok, ^stale} = Cache.get(nil, "a + 1")
+
+      assert within(2_000, fn -> ExCellerate.eval!("a + 1", %{"a" => 10}) end) == 11
+
+      # Recovery repaired the entry, so later hits run the fresh native module.
+      assert {:ok, fresh} = Cache.get(nil, "a + 1")
+      refute fresh == stale
+      assert_native(fresh)
+      assert fresh.(%{"a" => 10}) == 11
+    end
+
+    test "recovery that meets another stale fun for the same expression still terminates" do
+      # `first` is bound to S0, then S0 is reused by another expression.
+      {:ok, first} = ExCellerate.compile("a + 1")
+      NativeCompiler.release(nil, "a + 1")
+      wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
+      {:ok, _} = ExCellerate.compile("b + 1")
+      Cache.delete_stale(nil, "a + 1", ExCellerate.Compiled.S0)
+
+      # The cache then holds `second`, bound to S1, which is also released.
+      {:ok, second} = ExCellerate.compile("a + 1")
+      NativeCompiler.release(nil, "a + 1")
+      wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
+      assert {:ok, ^second} = Cache.get(nil, "a + 1")
+
+      # Recovering `first` drops nothing (the entry is bound to S1, not S0), gets
+      # `second` from the cache, and `second` is stale too. That nested recovery
+      # for the same expression evaluates interpreted instead of retrying.
+      assert within(2_000, fn -> first.(%{"a" => 10}) end) == 11
+      assert {:ok, ^second} = Cache.get(nil, "a + 1")
+
+      # Recovering through `second` itself repairs the entry.
+      assert within(2_000, fn -> second.(%{"a" => 10}) end) == 11
+      assert {:ok, fresh} = Cache.get(nil, "a + 1")
+      refute fresh == second
+      assert within(2_000, fn -> ExCellerate.eval!("a + 1", %{"a" => 10}) end) == 11
+    end
+
+    test "a restarted compiler drops native cache entries and unloads its predecessor's modules" do
+      {:ok, _} = ExCellerate.compile("a + 1")
+      {:ok, _} = ExCellerate.compile("a + 2")
+      mods = native_cache_mods()
+      assert length(mods) == 2
+
+      kill_native_compiler()
+
+      assert native_cache_mods() == []
+      assert %{minted: 0, free: 0, by_key: 0} = NativeCompiler.pool_stats()
+      for mod <- mods, do: refute(:code.is_loaded(mod))
+
+      # Reusing the names doesn't redefine a still-loaded module.
+      warnings = capture_io(:stderr, fn -> {:ok, _} = ExCellerate.compile("a * 7") end)
+      refute warnings =~ "redefining module"
+    end
+  end
+
+  # Kills the compiler without running terminate/2 (so its modules stay loaded)
+  # and waits for the test supervisor to restart it.
+  defp kill_native_compiler do
+    pid = Process.whereis(NativeCompiler)
+    ref = Process.monitor(pid)
+    Process.exit(pid, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+
+    wait_until(fn ->
+      new_pid = Process.whereis(NativeCompiler)
+      new_pid != nil and new_pid != pid
+    end)
+  end
+
+  defp native_cache_mods do
+    :ets.select(:excellerate_cache, [{{:_, :_, :_, :"$1"}, [{:"=/=", :"$1", nil}], [:"$1"]}])
   end
 
   test "with the supervisor started, eval is correct and the cached fun is native" do

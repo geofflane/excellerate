@@ -99,20 +99,65 @@ defmodule ExCellerate.Cache do
     :ok
   end
 
-  # Removes `key` if it is still present, keeping the registry's count in step
-  # and releasing its native module (a safe no-op cast when NativeCompiler isn't
-  # running). Returns whether this call removed it, so concurrent evictions of
-  # the same entry count it once.
+  @doc false
+  # Removes the entry for `expr` only if it is still bound to `stale_mod`, the
+  # module a stale native fun was compiled into. Stale-fun recovery calls this
+  # before recompiling, so it can't get the same stale fun back from the cache.
+  # The module isn't released: its slot was already released, or it belongs to
+  # a NativeCompiler that has since restarted.
+  def delete_stale(registry, expr, stale_mod) do
+    if table_exists?() do
+      deleted =
+        :ets.select_delete(@table_name, [{{{registry, expr}, :_, :_, stale_mod}, [], [true]}])
+
+      if deleted > 0, do: decrement_count(registry, deleted)
+    end
+
+    :ok
+  end
+
+  @doc false
+  # Drops every entry backed by a native module, without releasing them.
+  # NativeCompiler runs this when it (re)starts: the modules belong to the
+  # previous server, whose pool state is gone.
+  def drop_native_entries do
+    if table_exists?() do
+      @table_name
+      |> :ets.select([{{:"$1", :_, :_, :"$2"}, [{:"=/=", :"$2", nil}], [:"$1"]}])
+      |> Enum.each(&take/1)
+    end
+
+    :ok
+  end
+
+  # Removes `key` if it is still present and releases its native module (a safe
+  # no-op cast when NativeCompiler isn't running). Returns whether this call
+  # removed it, so concurrent evictions of the same entry count it once.
   defp take_and_release(key) do
-    case :ets.take(@table_name, key) do
-      [{{registry, expr}, _value, _ts, mod}] ->
-        :ets.update_counter(@counts_table, {:count, registry}, -1, {{:count, registry}, 0})
+    case take(key) do
+      {registry, expr, mod} ->
         if mod != nil, do: ExCellerate.NativeCompiler.release(registry, expr)
         true
 
-      [] ->
+      nil ->
         false
     end
+  end
+
+  # Removes `key` if it is still present, keeping the registry's count in step.
+  defp take(key) do
+    case :ets.take(@table_name, key) do
+      [{{registry, expr}, _value, _ts, mod}] ->
+        decrement_count(registry, 1)
+        {registry, expr, mod}
+
+      [] ->
+        nil
+    end
+  end
+
+  defp decrement_count(registry, n) do
+    :ets.update_counter(@counts_table, {:count, registry}, -n, {{:count, registry}, 0})
   end
 
   # -- GenServer callbacks --

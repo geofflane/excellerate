@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Identifiers beginning with `not` (e.g. `notable`, `nothing`, `not_set`) were parsed as the `not` operator applied to the rest of the name, so `notable` evaluated as `not(able)`. The `not` keyword now requires a word boundary.
 - Under `ExCellerate.Compilation.NativeCompiled`, a function returned by `compile/2` and held by the caller could silently evaluate a *different* expression after its cache entry was evicted and its pooled module slot reused (or raise `UndefinedFunctionError` once the slot was purged). Compiled modules are now generation-tagged, and returned functions detect a stale slot and transparently recompile, so held functions stay correct indefinitely.
+- Under `ExCellerate.Compilation.NativeCompiled`, a cached expression could hang its caller forever after `ExCellerate.NativeCompiler` restarted (or, rarely, after an eviction raced a compile): the restarted pool reused the cached function's module name, and the function's recovery recompiled through the cache, got the same stale function back, and retried endlessly. Recovery now drops the stale cache entry before recompiling and always terminates, and a restarted `NativeCompiler` drops native cache entries and unloads its predecessor's modules.
 - `ExCellerate.Cache.clear/0` now releases the native modules behind the entries it drops. Previously their pool slots were never returned.
 
 ### Changed

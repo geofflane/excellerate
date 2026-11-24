@@ -181,7 +181,7 @@ defmodule ExCellerate.NativeCompilerTest do
 
     test "a fun whose slot was reused hands the scope to its on_stale" do
       start_supervised!({NativeCompiler, native_module_limit: 1, native_purge_grace_ms: 20})
-      on_stale = fn scope -> {:stale, scope} end
+      on_stale = fn scope, stale_mod -> {:stale, scope, stale_mod} end
 
       {:ok, held, mod_a} = NativeCompiler.compile_cached(nil, "a + 1", ast!("a + 1"), on_stale)
       assert held.(%{"a" => 1}) == 2
@@ -190,11 +190,11 @@ defmodule ExCellerate.NativeCompilerTest do
       wait_until(fn -> NativeCompiler.pool_stats().free == 1 end)
 
       # Purged, slot not yet reused: the module is gone.
-      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}}
+      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}, mod_a}
 
       # Slot reused by another expression: the generation no longer matches.
       {:ok, _other, ^mod_a} = compile_cached(nil, "a * 5", ast!("a * 5"))
-      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}}
+      assert held.(%{"a" => 1}) == {:stale, %{"a" => 1}, mod_a}
     end
 
     test "a function captured just before release still evaluates during the grace window" do

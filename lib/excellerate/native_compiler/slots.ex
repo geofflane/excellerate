@@ -9,6 +9,8 @@ defmodule ExCellerate.NativeCompiler.Slots do
 
   defstruct [:cap, minted: 0, free: []]
 
+  @name_prefix "Elixir.ExCellerate.Compiled.S"
+
   # Creates a new slot pool with the given capacity.
   @doc false
   @spec new(pos_integer()) :: t()
@@ -39,6 +41,11 @@ defmodule ExCellerate.NativeCompiler.Slots do
   @spec minted_names(t()) :: [atom()]
   def minted_names(%__MODULE__{minted: minted}) do
     for i <- 0..(minted - 1)//1, do: name(i)
+  end
+
+  # Whether `mod` is a pooled module name, i.e. one any pool instance may mint.
+  def pooled_name?(mod) when is_atom(mod) do
+    String.starts_with?(Atom.to_string(mod), @name_prefix)
   end
 
   defp name(index), do: Module.concat(ExCellerate.Compiled, "S#{index}")

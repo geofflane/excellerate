@@ -92,7 +92,34 @@ defmodule ExCellerate.NativeCompiler do
         Application.get_env(:excellerate, :native_purge_grace_ms, @default_grace_ms)
       )
 
+    # A restart starts with an empty pool, so it is about to reuse names from
+    # pooled modules a killed predecessor left loaded (terminate/2 doesn't run on
+    # :kill). Unload them first, so reusing a name never redefines a loaded module.
+    unload_leftover_modules()
+
+    # Caller-supplied hook, run on every (re)start. The supervisor passes one that
+    # drops cached native funs: the modules they point at belong to the previous
+    # server. Supplied as an MFA so this module doesn't depend on the Cache that
+    # depends on it.
+    case Keyword.get(opts, :on_init) do
+      {m, f, a} -> apply(m, f, a)
+      nil -> :ok
+    end
+
     {:ok, %{slots: Slots.new(cap), by_key: %{}, grace_ms: grace_ms, warned_full: false}}
+  end
+
+  defp unload_leftover_modules do
+    for {mod, _} <- :code.all_loaded(), Slots.pooled_name?(mod) do
+      # Drop any old version first, so :code.delete has nothing to complain about,
+      # then make the current version old and purge it. soft_purge leaves code a
+      # process is still running; that process finishes on the old version.
+      :code.soft_purge(mod)
+      :code.delete(mod)
+      :code.soft_purge(mod)
+    end
+
+    :ok
   end
 
   # Compiles `elixir_ast` into a native BEAM module, reusing a pooled module
@@ -101,8 +128,10 @@ defmodule ExCellerate.NativeCompiler do
   #   * {:ok, fun, mod_name}      — native module function
   #   * {:ok, interpreted_fun, nil} — fallback when the pool is full
   #
-  # `on_stale` evaluates the expression for a scope when the returned closure
-  # finds its slot released (see "Stale-slot guard" below).
+  # `on_stale.(scope, stale_mod)` evaluates the expression for a scope when the
+  # returned closure finds its slot released (see "Stale-slot guard" below).
+  # `stale_mod` is the module the closure was bound to, so the caller can drop
+  # cache entries that still point at it.
   #
   # Assumes `elixir_ast` is an already-parsed/compiled, valid AST (produced by
   # Parser + Compiler). Module creation is still guarded so a malformed-AST edge
@@ -111,7 +140,7 @@ defmodule ExCellerate.NativeCompiler do
           module() | nil,
           String.t(),
           Macro.t(),
-          (ExCellerate.scope() -> any())
+          (ExCellerate.scope(), module() -> any())
         ) :: {:ok, (ExCellerate.scope() -> any()), module() | nil}
   def compile_cached(registry, expr, elixir_ast, on_stale) do
     GenServer.call(__MODULE__, {:compile, registry, expr, elixir_ast, on_stale})
@@ -286,7 +315,7 @@ defmodule ExCellerate.NativeCompiler do
     mod.eval(scope, gen)
   catch
     :error, {:excellerate_stale_module, ^mod} ->
-      on_stale.(scope)
+      on_stale.(scope, mod)
 
     :error, :undef ->
       # Only treat :undef as staleness when the missing function is this slot's
@@ -294,7 +323,7 @@ defmodule ExCellerate.NativeCompiler do
       # inside the expression is a real error and is re-raised untouched.
       case __STACKTRACE__ do
         [{^mod, :eval, args, _} | _] when args == 2 or length(args) == 2 ->
-          on_stale.(scope)
+          on_stale.(scope, mod)
 
         stacktrace ->
           :erlang.raise(:error, :undef, stacktrace)

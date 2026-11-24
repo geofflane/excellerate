@@ -330,6 +330,12 @@ defmodule ExCellerate do
   there is no supervision wiring and it works whether native is selected globally
   or only on a single registry. Nothing is started for interpreted-only use.
 
+  A function returned by `compile/2` keeps working for as long as you hold it,
+  even after its expression is evicted from the cache or `NativeCompiler`
+  restarts: when its module is gone, it recompiles the expression on its next
+  call. A restarted `NativeCompiler` drops the native entries from the cache,
+  since their modules belonged to the previous process.
+
   The `ExCellerate.Cache` (compiled-function cache) is separate and opt-in — add
   it to your own supervision tree. See the README for the `native_module_limit` /
   `native_purge_grace_ms` knobs.
